@@ -1,0 +1,15 @@
+# makepkg build trees and artifacts
+*/src/
+*/pkg/
+*.pkg.tar.*
+*.log
+
+# downloaded upstream sources
+*.deb
+*.tar.gz
+*.tar.xz
+*.tar.zst
+proton-drive-*-x86_64
+proton-drive-*-aarch64
+LICENSE
+!proton_mail/LICENSE
