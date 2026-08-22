@@ -2,7 +2,7 @@
 # Build and install the local AUR packages in this repo.
 #
 #   ./install.sh                 # build + install everything
-#   ./install.sh proton_pass     # one package (proton_pass, proton_mail, proton_drive)
+#   ./install.sh proton_pass     # one package (proton_pass, proton_mail, proton_drive, proton_vpn)
 #   ./install.sh --build-only    # build packages, do not install
 set -euo pipefail
 
@@ -13,9 +13,10 @@ declare -A PKGNAME=(
   [proton_pass]=proton-pass-bin
   [proton_mail]=proton-mail-bin
   [proton_drive]=proton-drive-cli-bin
+  [proton_vpn]=proton-vpn-gtk-app
 )
 
-ALL_PACKAGES=(proton_pass proton_mail proton_drive)
+ALL_PACKAGES=(proton_pass proton_mail proton_drive proton_vpn)
 
 usage() {
   cat <<EOF
@@ -27,6 +28,7 @@ Packages:
   proton_pass   Proton Pass desktop (proton-pass-bin 1.39.1)
   proton_mail   Proton Mail desktop (proton-mail-bin 1.13.4)
   proton_drive  Proton Drive CLI (proton-drive-cli-bin 0.8.0)
+  proton_vpn    Proton VPN GTK app (proton-vpn-gtk-app 4.16.5)
 
 Options:
   --build-only   Build packages but do not install
@@ -42,7 +44,7 @@ EOF
 normalize() {
   local name="${1//-/_}"
   case "$name" in
-    proton_pass|proton_mail|proton_drive) printf '%s\n' "$name" ;;
+    proton_pass|proton_mail|proton_drive|proton_vpn) printf '%s\n' "$name" ;;
     *)
       echo "Unknown package: $1" >&2
       echo "Known packages: ${ALL_PACKAGES[*]}" >&2
@@ -106,19 +108,18 @@ for pkg in "${selected[@]}"; do
     makepkg -sf --needed --noconfirm --cleanbuild
   )
 
-  shopt -s nullglob
-  artifacts=("$dir"/*.pkg.tar.zst "$dir"/*.pkg.tar.xz)
-  shopt -u nullglob
-
+  # Use this PKGBUILD's packagelist, not every leftover *.pkg.tar.* in the dir.
+  # A previous version (e.g. extra-testing 4.17.2 next to extra 4.16.5) makes
+  # pacman -U fail with "duplicate target".
   found=0
-  for artifact in "${artifacts[@]}"; do
+  while IFS= read -r artifact; do
     [[ -f "$artifact" ]] || continue
     if [[ "$artifact" == *-debug-* ]]; then
       continue
     fi
     built_pkgs+=("$artifact")
     found=1
-  done
+  done < <(cd "$dir" && makepkg --packagelist)
 
   if [[ $found -eq 0 ]]; then
     echo "No package artifact produced for $pkg" >&2

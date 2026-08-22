@@ -1,0 +1,4 @@
+[proton-vpn-gtk-app]
+source = "git"
+git = "https://github.com/ProtonVPN/proton-vpn-gtk-app.git"
+prefix = "v"

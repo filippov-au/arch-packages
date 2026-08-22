@@ -1,0 +1,34 @@
+pkgbase = proton-vpn-gtk-app
+	pkgdesc = ProtonVPN GTK app, Maintained by Community
+	pkgver = 4.16.5
+	pkgrel = 2
+	url = https://github.com/ProtonVPN/proton-vpn-gtk-app
+	arch = any
+	license = GPL-3.0-or-later
+	makedepends = git
+	makedepends = python-build
+	makedepends = python-installer
+	makedepends = python-setuptools
+	makedepends = python-wheel
+	depends = glib2
+	depends = pango
+	depends = gtk4
+	depends = libnotify
+	depends = gdk-pixbuf2
+	depends = python
+	depends = python-cairo
+	depends = python-dbus
+	depends = python-distro
+	depends = python-gobject
+	depends = python-packaging
+	depends = proton-vpn-daemon
+	depends = python-proton-core
+	depends = python-proton-keyring-linux
+	depends = python-proton-vpn-api-core
+	depends = python-proton-vpn-local-agent
+	depends = python-proton-vpn-network-manager
+	depends = python-requests
+	source = git+https://github.com/ProtonVPN/proton-vpn-gtk-app.git#tag=v4.16.5
+	sha256sums = 3d9b510f9a6182a3e05b9e120cffb8f1e1156d0e865b72dff0924b760c2bf4e3
+
+pkgname = proton-vpn-gtk-app

@@ -1,0 +1,59 @@
+# Maintainer: Peter Jung <ptr1337@archlinux.org>
+# Contributor: Ali Molaei <ali dot molaei at protonmail dot com>
+
+pkgname=proton-vpn-gtk-app
+pkgver=4.16.5
+pkgrel=2
+pkgdesc="ProtonVPN GTK app, Maintained by Community"
+arch=(any)
+url="https://github.com/ProtonVPN/proton-vpn-gtk-app"
+license=(GPL-3.0-or-later)
+depends=(
+  glib2
+  pango
+  gtk4
+  libnotify
+  gdk-pixbuf2
+  python
+  python-cairo
+  python-dbus
+  python-distro
+  python-gobject
+  python-packaging
+  proton-vpn-daemon
+  python-proton-core
+  python-proton-keyring-linux
+  python-proton-vpn-api-core
+  python-proton-vpn-local-agent
+  python-proton-vpn-network-manager
+  python-requests
+)
+makedepends=(
+  git
+  python-build
+  python-installer
+  python-setuptools
+  python-wheel
+)
+source=("git+https://github.com/ProtonVPN/proton-vpn-gtk-app.git#tag=v${pkgver}")
+sha256sums=('3d9b510f9a6182a3e05b9e120cffb8f1e1156d0e865b72dff0924b760c2bf4e3')
+
+prepare() {
+  cd "$pkgname"
+}
+
+build() {
+  cd "$pkgname"
+  python -m build --wheel --no-isolation
+}
+
+package() {
+  cd "$pkgname"
+  python -m installer --destdir="$pkgdir" dist/*.whl
+  install -d -m755 "${pkgdir}/usr/share/applications"
+  install -d -m755 "${pkgdir}/usr/share/icons/hicolor/scalable/apps/"
+
+  cp ./rpmbuild/SOURCES/proton.vpn.app.gtk.desktop "${pkgdir}/usr/share/applications/proton.vpn.app.gtk.desktop"
+  cp ./rpmbuild/SOURCES/proton-vpn-logo.svg "${pkgdir}/usr/share/icons/hicolor/scalable/apps/"
+  cp ./proton/vpn/app/gtk/assets/icons/proton-vpn-sign.svg "${pkgdir}/usr/share/icons/hicolor/scalable/apps/"
+}
