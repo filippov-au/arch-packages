@@ -11,5 +11,6 @@
 *.tar.zst
 proton-drive-*-x86_64
 proton-drive-*-aarch64
+proton-vpn-gtk-app/
 LICENSE
 !proton_mail/LICENSE
