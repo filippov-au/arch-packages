@@ -2,7 +2,7 @@
 # Build and install the local AUR packages in this repo.
 #
 #   ./install.sh                 # build + install everything
-#   ./install.sh proton_pass     # one package (proton_pass, proton_mail, proton_drive, proton_vpn)
+#   ./install.sh proton_pass     # one package (proton_pass, proton_mail, proton_drive, proton_vpn, orca)
 #   ./install.sh --build-only    # build packages, do not install
 set -euo pipefail
 
@@ -14,9 +14,10 @@ declare -A PKGNAME=(
   [proton_mail]=proton-mail-bin
   [proton_drive]=proton-drive-cli-bin
   [proton_vpn]=proton-vpn-gtk-app
+  [orca]=stably-orca-bin
 )
 
-ALL_PACKAGES=(proton_pass proton_mail proton_drive proton_vpn)
+ALL_PACKAGES=(proton_pass proton_mail proton_drive proton_vpn orca)
 
 usage() {
   cat <<EOF
@@ -29,6 +30,7 @@ Packages:
   proton_mail   Proton Mail desktop (proton-mail-bin 1.13.4)
   proton_drive  Proton Drive CLI (proton-drive-cli-bin 0.8.0)
   proton_vpn    Proton VPN GTK app (proton-vpn-gtk-app 4.16.5)
+  orca          Orca ADE desktop (stably-orca-bin 1.4.188)
 
 Options:
   --build-only   Build packages but do not install
@@ -44,7 +46,10 @@ EOF
 normalize() {
   local name="${1//-/_}"
   case "$name" in
-    proton_pass|proton_mail|proton_drive|proton_vpn) printf '%s\n' "$name" ;;
+    stably_orca|stably_orca_bin) name=orca ;;
+  esac
+  case "$name" in
+    proton_pass|proton_mail|proton_drive|proton_vpn|orca) printf '%s\n' "$name" ;;
     *)
       echo "Unknown package: $1" >&2
       echo "Known packages: ${ALL_PACKAGES[*]}" >&2

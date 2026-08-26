@@ -6,6 +6,7 @@
 
 # downloaded upstream sources
 *.deb
+*.AppImage
 *.tar.gz
 *.tar.xz
 *.tar.zst
