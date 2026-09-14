@@ -1,0 +1,8 @@
+{
+  "url": "https://aur.archlinux.org/proton-drive-cli-bin.git",
+  "commit": "ff9a413783c9d819f333749a46b9fd319cedd454",
+  "files": [
+    ".SRCINFO",
+    "PKGBUILD"
+  ]
+}

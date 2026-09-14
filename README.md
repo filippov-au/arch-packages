@@ -1,58 +1,164 @@
-# Daily Arch packages
+# Arch packages
 
-Local, reviewed AUR PKGBUILDs for the apps I use on Omarchy.
+Reviewed Arch Linux packages for Orca ADE, Proton Pass, Proton Mail, Proton Drive CLI, and Proton VPN.
+
+- **Source:** https://github.com/filippov-au/arch-packages
+- **Hosted pacman repository:** [GitHub Releases](https://github.com/filippov-au/arch-packages/releases/tag/packages)
+- **Updates:** daily checks open a separate pull request for each changed package.
+- **Publishing:** merging to `master` builds changed recipes and updates the hosted repository.
+
+## Install on an Arch Linux machine
+
+Clone this repository and run:
 
 ```bash
+git clone https://github.com/filippov-au/arch-packages.git
+cd arch-packages
 ./install.sh
 ```
 
-Install a subset:
+Or install a subset:
 
 ```bash
-./install.sh proton_pass
-./install.sh orca
+./install.sh orca proton_pass
 ```
 
-Build without installing:
+The installer backs up `/etc/pacman.conf`, puts this repository before Arch's
+repositories, then runs a full system upgrade with the selected packages as
+explicit targets. Explicit targets reinstall an equal version too, so an existing
+AUR Orca installation gets the customized launcher.
+
+For manual configuration, add this **above `[core]` and `[extra]`**, outside the
+`[options]` section:
+
+```ini
+[arch-packages]
+SigLevel = Optional TrustAll
+Server = https://github.com/filippov-au/arch-packages/releases/download/packages
+```
+
+Then run `sudo pacman -Syu`. To replace the existing Orca build immediately:
 
 ```bash
-./install.sh --build-only
+sudo pacman -Syu arch-packages/stably-orca-bin
 ```
 
-| Directory      | AUR package            | Version | What you get                          |
-|----------------|------------------------|---------|---------------------------------------|
-| `proton_pass`  | `proton-pass-bin`      | 1.39.1  | Official Proton Pass desktop app      |
-| `proton_mail`  | `proton-mail-bin`      | 1.13.4  | Official Proton Mail desktop app      |
-| `proton_drive` | `proton-drive-cli-bin` | 0.8.0   | Official Proton Drive **CLI**         |
-| `proton_vpn`   | `proton-vpn-gtk-app`   | 4.16.5  | Official Proton VPN GTK app           |
-| `orca`         | `stably-orca-bin`      | 1.4.188 | Official Orca ADE (prebuilt AppImage) |
+Downloads are public and need no account or token. Packages currently have no
+package signatures; trust relies on GitHub HTTPS and repository write access.
+The signature setting above applies only to this repository. Official Arch
+repositories retain their existing signature requirements.
 
-Proton has no Linux Drive desktop client yet. `proton-drive` installs the official `proton-drive` command. After install: `proton-drive auth login`.
+Pacman prefers the first repository containing the same package name. Once this
+repository is configured and its database is refreshed, normal Yay AUR updates
+exclude these repository packages. Your reviewed releases control their updates.
+Do not add these packages to `IgnorePkg`: that would also block your own updates.
+Do not use `-Suu` to force downgrades when your installed version is newer.
 
-AUR `proton-vpn-gtk-app` is abandoned at 4.8.1 (the package moved to extra). `proton_vpn` tracks **extra 4.16.5**, which matches extra’s Python stack (`python-proton-vpn-api-core` 5.2.5). Extra-testing’s 4.17.2 needs `python-proton-vpn-api-core` ≥ 5.5.5 (extra-testing has 5.5.11) and dies on extra 5.2.5 with `ProtonVPNAPI.__init__() got an unexpected keyword argument 'locale'`. After install: `protonvpn-app`.
+## Packages
 
-Orca ADE is [onorca.dev](https://www.onorca.dev/). After install: `stably-orca`.
+| Directory | Package name | Source of packaging updates |
+|---|---|---|
+| `orca` | `stably-orca-bin` | AUR |
+| `proton_pass` | `proton-pass-bin` | AUR |
+| `proton_mail` | `proton-mail-bin` | AUR |
+| `proton_drive` | `proton-drive-cli-bin` | AUR |
+| `proton_vpn` | `proton-vpn-gtk-app` | Arch's official packaging repository |
 
-## Safety notes (reviewed 2026-08-26)
+See each `PKGBUILD` for its version, dependencies, checksums, and upstream license.
+The published binary repository targets **x86_64** machines, including packages
+marked `any`. It does not currently publish a separate ARM repository.
 
-Pass, Mail, Drive, and Orca are `-bin` packages: they wrap official upstream binaries and do not run `yarn` / `bun` / `cargo` at build time.
+Orca uses the extracted official AppImage, sets `APPDIR`, disables Vulkan, and
+forces native Wayland. Its command is `stably-orca`; GNOME's `orca` package is an
+unrelated screen reader. Proton Drive is the official CLI, not a desktop client.
+Proton VPN follows Arch's maintained recipe, not its abandoned AUR entry.
 
-- **PKGBUILDs** only extract or install files. No `curl | sh`, no extra network in `package()`, no `sudo`.
-- **Proton Pass** SHA-512 matches Proton's published `version.json`.
-- **Proton Mail** uses Proton's `.deb` plus a 2-line wrapper around system `electron40`.
-- **Proton Drive** installs Proton's official `proton-drive` binary from `proton.me`.
-- **Proton VPN** is Python/GTK, not a `-bin` wrapper. The AUR leftover was 4.8.1; this tree is extra 4.16.5 (`python -m build`, no extra network in `package()`). Do not bump to extra-testing 4.17.2 unless extra’s `python-proton-vpn-api-core` is also ≥ 5.5.5.
-- **Orca** is AUR `stably-orca-bin` (the name Orca documents). It extracts the official `orca-linux.AppImage` into `/opt/stably-orca` and launches `AppRun` — no AppImage at runtime. Command is `stably-orca` so it does not clash with GNOME’s `orca` screen reader. The local wrapper adds `--ozone-platform=wayland` for Hyprland; drop that flag in `orca/stably-orca.sh` to fall back to XWayland.
+## Update pull requests
 
-The source AUR variant `proton-pass` was **not** used: it is flagged out of date with a checksum mismatch.
+The **Check package updates** workflow runs daily and can also be started from
+GitHub's Actions tab. It checks each package independently and opens one PR per
+upstream packaging revision. Existing PRs for the same revision are not duplicated.
+There is no automatic merge.
 
-Do not use AUR `orca` / `orca-git` (GNOME screen reader) or `orca-slicer*` (3D printer slicer). Other Orca ADE AUR names: `onorca-bin` (official `.deb`, also fine), `orca-ide-bin` (system Electron + asar rewrite, skip), `stably-orca` / `stably-orca-git` (source builds).
+The script uses each package's `.upstream.json` to merge the previous upstream
+recipe, your local recipe, and the new upstream recipe. This preserves changes
+such as Orca's Wayland launcher and its checksum. Conflicting changes fail that
+package's job without modifying files; they require a manual merge. Updates to
+upstream applications appear when the tracked AUR/Arch recipe is updated.
 
-Re-read each `PKGBUILD` before you bump a version. AUR is still user-submitted.
-
-## Update a package from the AUR
+Run an update locally without creating a PR:
 
 ```bash
-git clone --depth 1 "$(cat proton_pass/.aur-url)" /tmp/proton-pass-bin
-# review PKGBUILD, then copy files back into ./proton_pass
+python scripts/update.py orca
 ```
+
+Or open a PR from a **clean checkout of the latest `master`** using your existing
+GitHub CLI login:
+
+```bash
+python scripts/update.py orca --pr --repo filippov-au/arch-packages
+```
+
+PR mode switches the checkout to its update branch. The scheduled workflow gives
+each package a separate checkout. Review the recipe, source URLs, checksums,
+dependency changes, and build results before merging. If GitHub asks for approval
+before running a bot-created PR's checks, select **Approve workflows to run**.
+
+GitHub Actions must have **Allow GitHub Actions to create and approve pull requests**
+enabled in Settings → Actions → General. The workflow uses the temporary built-in
+`GITHUB_TOKEN`; no personal access token or repository secret is required.
+
+## Build and publish
+
+Local builds need Docker, Git, Python 3.11+, and `zstd`. The build runs as a generic
+unprivileged user in an Arch container. It installs dependencies in that container.
+
+```bash
+./install.sh --build-only orca
+python scripts/repository.py build --repo filippov-au/arch-packages
+```
+
+Use an empty `dist/` directory for a complete repository build. Unchanged recipes
+reuse checksum-verified published archives. Changed recipes build from scratch.
+Bump `pkgrel` when modifying a recipe without changing its upstream version;
+publishing refuses to replace an existing package filename with different bytes.
+
+The **Publish package repository** workflow runs after a push/merge to `master`
+and supports manual dispatch. Its build job has read-only GitHub permissions.
+A separate publishing job receives temporary release-write permission, uploads
+new package files first, and updates the repository database last. Older package
+archives remain downloadable for clients with an older database.
+
+To publish a locally assembled repository using an existing `gh` login:
+
+```bash
+python scripts/repository.py publish --repo filippov-au/arch-packages
+```
+
+Keep the `packages` release mutable: its database and manifest are updated in
+place. Package archives themselves are never overwritten. GitHub stores the
+binaries as Release assets, not Git objects; no additional hosting service is needed.
+
+## Privacy and validation
+
+Only package source files and repository tooling belong in Git. Build directories,
+downloaded binaries, output archives, environment files, and common private-key
+files are ignored. Builds receive only tracked/unignored package inputs, with no
+host home directory, Git credentials, Docker socket, or token environment passed
+into the container. Build metadata uses generic `/build` paths.
+
+```bash
+python scripts/audit.py --history
+python scripts/audit.py --packages dist
+python -m unittest discover -s tests -v
+```
+
+The source check looks for common credential patterns and personal home paths in
+files and Git history. Package checks verify neutral build paths and root archive
+ownership, and scan payloads for the build host's home path and hostname. These
+checks supplement review; they are not a guarantee that arbitrary third-party
+software contains no sensitive-looking data.
+
+Git author names/emails are public. Upstream maintainer attribution and license
+notices are preserved. GitHub authentication remains in the local CLI or in the
+runner's temporary environment, never in committed files or package artifacts.

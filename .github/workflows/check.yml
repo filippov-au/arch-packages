@@ -1,0 +1,32 @@
+name: Check packages
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - run: python scripts/audit.py --history
+      - run: python -m unittest discover -s tests -v
+      - run: for file in install.sh scripts/*.sh; do bash -n "$file"; done
+  build:
+    needs: validate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [orca, proton_pass, proton_mail, proton_drive, proton_vpn]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build without credentials inside the container
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: bash scripts/build.sh "$PACKAGE"

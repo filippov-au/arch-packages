@@ -1,0 +1,10 @@
+{
+  "url": "https://aur.archlinux.org/proton-pass-bin.git",
+  "commit": "c5673149de6c5739cfdf3a77f12c2709586d1be5",
+  "files": [
+    ".SRCINFO",
+    ".gitignore",
+    ".nvchecker.toml",
+    "PKGBUILD"
+  ]
+}

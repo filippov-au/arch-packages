@@ -15,3 +15,18 @@ proton-drive-*-aarch64
 proton-vpn-gtk-app/
 LICENSE
 !proton_mail/LICENSE
+!proton_vpn/LICENSE
+
+# Repository output and local tooling state; never publish these in Git.
+/dist/
+/previous/
+__pycache__/
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.asc
+*.db*
+*.files*

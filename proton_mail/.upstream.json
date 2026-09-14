@@ -1,0 +1,13 @@
+{
+  "url": "https://aur.archlinux.org/proton-mail-bin.git",
+  "commit": "291783fb9b202b05fa2032cd0619b84046fe6446",
+  "files": [
+    ".SRCINFO",
+    ".nvchecker.toml",
+    "LICENSE",
+    "LICENSES/0BSD.txt",
+    "PKGBUILD",
+    "REUSE.toml",
+    "proton-mail.sh"
+  ]
+}
