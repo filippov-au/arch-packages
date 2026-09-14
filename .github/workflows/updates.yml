@@ -1,5 +1,11 @@
 name: Check package updates
 on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/updates.yml'
+      - 'scripts/update.py'
+      - '*/.upstream.json'
   schedule:
     - cron: '17 3 * * *'
   workflow_dispatch:

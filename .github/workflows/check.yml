@@ -1,5 +1,9 @@
 name: Check packages
 on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/check.yml'
   pull_request:
   workflow_dispatch:
 permissions:
