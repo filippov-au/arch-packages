@@ -1,8 +1,25 @@
 {
-  "url": "https://aur.archlinux.org/proton-drive-cli-bin.git",
-  "commit": "ff9a413783c9d819f333749a46b9fd319cedd454",
-  "files": [
-    ".SRCINFO",
-    "PKGBUILD"
+  "provider": "proton",
+  "url": "https://proton.me/download/drive/cli/version.json",
+  "files_key": "Files",
+  "assets": [
+    {
+      "match": {
+        "Platform": "linux/arm64"
+      },
+      "source": "source_aarch64",
+      "checksums": [
+        "sha512sums"
+      ]
+    },
+    {
+      "match": {
+        "Platform": "linux/x64"
+      },
+      "source": "source_x86_64",
+      "checksums": [
+        "sha512sums"
+      ]
+    }
   ]
 }

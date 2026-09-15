@@ -1,5 +1,0 @@
-[stably-orca-bin]
-source = "github"
-github = "stablyai/orca"
-use_latest_release = true
-prefix = "v"

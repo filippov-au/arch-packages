@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/updates.yml'
       - 'scripts/update.py'
+      - 'scripts/vendor.py'
       - '*/.upstream.json'
   schedule:
     - cron: '17 3 * * *'
@@ -21,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [orca, proton_pass, proton_mail, proton_drive, proton_vpn]
+        package: [orca, proton_pass, proton_mail, proton_drive]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:

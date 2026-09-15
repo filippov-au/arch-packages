@@ -1,4 +1,0 @@
-[proton-pass-bin]
-source = "jq"
-url = "https://proton.me/download/PassDesktop/linux/x64/version.json"
-filter = ".Releases[0].Version"

@@ -1,10 +1,13 @@
 {
-  "url": "https://aur.archlinux.org/stably-orca-bin.git",
-  "commit": "7da028a7d751cbfd6c7519c418a7062bdac60f04",
-  "files": [
-    ".SRCINFO",
-    "PKGBUILD",
-    "stably-orca.desktop",
-    "stably-orca.sh"
+  "provider": "github",
+  "url": "https://api.github.com/repos/stablyai/orca/releases/latest",
+  "assets": [
+    {
+      "name": "orca-linux.AppImage",
+      "source": "source",
+      "checksums": [
+        "sha256sums"
+      ]
+    }
   ]
 }

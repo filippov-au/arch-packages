@@ -1,11 +1,17 @@
 # Arch packages
 
-Reviewed Arch Linux packages for Orca ADE, Proton Pass, Proton Mail, Proton Drive CLI, and Proton VPN.
+Reviewed Arch Linux packages for Orca ADE, Proton Pass, Proton Mail, and Proton Drive CLI.
+
+This is a community-maintained package repository. The hosted packages target
+**x86_64 Arch Linux and Omarchy**. Orca's customized launcher requires a Wayland
+session. Packages are currently **unsigned**; see the trust details below before
+installing.
 
 - **Source:** https://github.com/filippov-au/arch-packages
 - **Hosted pacman repository:** [GitHub Releases](https://github.com/filippov-au/arch-packages/releases/tag/packages)
 - **Updates:** daily checks open a separate pull request for each changed package.
 - **Publishing:** merging to `master` builds changed recipes and updates the hosted repository.
+- **Contributing:** [report issues and propose changes](CONTRIBUTING.md).
 
 ## Install on an Arch Linux machine
 
@@ -72,13 +78,12 @@ Do not use `-Suu` to force downgrades when your installed version is newer.
 
 ## Packages
 
-| Directory | Package name | Source of packaging updates |
+| Directory | Package name | Release source |
 |---|---|---|
-| `orca` | `stably-orca-bin` | AUR |
-| `proton_pass` | `proton-pass-bin` | AUR |
-| `proton_mail` | `proton-mail-bin` | AUR |
-| `proton_drive` | `proton-drive-cli-bin` | AUR |
-| `proton_vpn` | `proton-vpn-gtk-app` | Arch's official packaging repository |
+| `orca` | `stably-orca-bin` | Official GitHub releases |
+| `proton_pass` | `proton-pass-bin` | Proton's Linux release feed |
+| `proton_mail` | `proton-mail-bin` | Proton's Linux release feed |
+| `proton_drive` | `proton-drive-cli-bin` | Proton's CLI release feed |
 
 See each `PKGBUILD` for its version, dependencies, checksums, and upstream license.
 The published binary repository targets **x86_64** machines, including packages
@@ -87,20 +92,27 @@ marked `any`. It does not currently publish a separate ARM repository.
 Orca uses the extracted official AppImage, sets `APPDIR`, disables Vulkan, and
 forces native Wayland. Its command is `stably-orca`; GNOME's `orca` package is an
 unrelated screen reader. Proton Drive is the official CLI, not a desktop client.
-Proton VPN follows Arch's maintained recipe, not its abandoned AUR entry.
 
 ## Update pull requests
 
 The **Check package updates** workflow runs daily and can also be started from
 GitHub's Actions tab. It checks each package independently and opens one PR per
-upstream packaging revision. Existing PRs for the same revision are not duplicated.
+stable vendor version. Existing PRs for the same version are not duplicated.
 There is no automatic merge.
 
-The script uses each package's `.upstream.json` to merge the previous upstream
-recipe, your local recipe, and the new upstream recipe. This preserves changes
-such as Orca's Wayland launcher and its checksum. Conflicting changes fail that
-package's job without modifying files; they require a manual merge. Updates to
-upstream applications appear when the tracked AUR/Arch recipe is updated.
+Each package's `.upstream.json` identifies its official release feed and assets.
+The checker downloads new stable releases, verifies vendor-published checksums,
+and updates `pkgver`, `pkgrel`, source checksums, and `.SRCINFO`. It does not wait
+for AUR updates or import third-party packaging changes. Recipes, dependencies,
+and launchers are maintained here; existing attribution and license notices remain.
+
+The updater selects the highest stable Proton version or Orca's latest stable
+GitHub release, and never automatically downgrades. It verifies both Drive
+architectures and preserves launcher checksums, including Mail's additional
+BLAKE2 checksum. A changed download URL, missing asset, or checksum mismatch
+stops the update before package files change. No `PKGBUILD` is executed during
+the update check. Packaging and dependency changes need review; Mail's build
+also checks that its Electron dependency matches the downloaded application.
 
 Run an update locally without creating a PR:
 
@@ -117,8 +129,11 @@ python scripts/update.py orca --pr --repo filippov-au/arch-packages
 
 PR mode switches the checkout to its update branch. The scheduled workflow gives
 each package a separate checkout. Review the recipe, source URLs, checksums,
-dependency changes, and build results before merging. If GitHub asks for approval
-before running a bot-created PR's checks, select **Approve workflows to run**.
+dependency changes, and build results before merging. Bot-created PR checks can
+require approval: a maintainer with write access must select **Approve workflows
+to run** in the PR before the checks execute. This is expected
+[GitHub token behavior](https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs).
+Wait for the checks to pass before merging.
 
 GitHub Actions must have **Allow GitHub Actions to create and approve pull requests**
 enabled in Settings → Actions → General. The workflow uses the temporary built-in
@@ -144,6 +159,11 @@ and supports manual dispatch. Its build job has read-only GitHub permissions.
 A separate publishing job receives temporary release-write permission, uploads
 new package files first, and updates the repository database last. Older package
 archives remain downloadable for clients with an older database.
+
+Before any release upload, the publisher checks every package archive against the
+manifest, verifies that both databases list the same packages with matching sizes
+and checksums, and verifies their `.db` and `.files` aliases. Missing or stale
+database files stop publication before the release is modified.
 
 To publish a locally assembled repository using an existing `gh` login:
 

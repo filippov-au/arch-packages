@@ -4,13 +4,15 @@ import argparse
 import hashlib
 import json
 import pathlib
+import re
 import shutil
 import subprocess
+import tarfile
 import urllib.error
 import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-PACKAGES = ('orca', 'proton_pass', 'proton_mail', 'proton_drive', 'proton_vpn')
+PACKAGES = ('orca', 'proton_pass', 'proton_mail', 'proton_drive')
 NAME = 'arch-packages'
 TAG = 'packages'
 
@@ -44,6 +46,67 @@ def get_json(url):
 def download(url, path):
     with urllib.request.urlopen(url, timeout=120) as response, path.open('wb') as output:
         shutil.copyfileobj(response, output)
+
+
+def database_entries(path):
+    """Read repo-add descriptions without extracting archive members."""
+    entries = {}
+    try:
+        with tarfile.open(path, 'r:gz') as archive:
+            for member in archive:
+                if pathlib.PurePosixPath(member.name).name != 'desc':
+                    continue
+                if not member.isfile() or member.size > 1024 * 1024:
+                    raise ValueError('invalid package description')
+                fields = {}
+                for block in archive.extractfile(member).read().decode().strip().split('\n\n'):
+                    lines = block.splitlines()
+                    if not lines or not re.fullmatch(r'%[A-Z0-9_]+%', lines[0]) or lines[0] in fields:
+                        raise ValueError('invalid or duplicate description field')
+                    fields[lines[0]] = lines[1:]
+                filenames = fields.get('%FILENAME%', [])
+                if len(filenames) != 1 or filenames[0] in entries:
+                    raise ValueError('missing or duplicate package filename')
+                entries[filenames[0]] = fields
+    except (OSError, EOFError, tarfile.TarError, ValueError) as error:
+        raise RuntimeError(f'{path.name}: invalid repository database') from error
+    return entries
+
+
+def validate(output):
+    """Check every release input before contacting GitHub or uploading anything."""
+    manifest = json.loads((output / 'manifest.json').read_text())
+    if set(manifest['packages']) != set(PACKAGES):
+        raise RuntimeError('Manifest does not contain exactly the configured packages')
+    if not re.fullmatch(r'[0-9a-f]{40}', manifest.get('source_commit', '')):
+        raise RuntimeError('Manifest has an invalid source commit')
+    expected = {}
+    for entry in manifest['packages'].values():
+        filename = entry['filename']
+        if (pathlib.Path(filename).name != filename or not filename.endswith('.pkg.tar.zst')
+                or filename in expected):
+            raise RuntimeError('Artifact filename validation failed')
+        artifact = output / filename
+        if not artifact.is_file() or sha(artifact) != entry['sha256']:
+            raise RuntimeError(f'{filename}: artifact checksum validation failed')
+        expected[filename] = entry
+    databases = []
+    for suffix in ('db', 'files'):
+        alias = output / f'{NAME}.{suffix}'
+        archive = output / f'{NAME}.{suffix}.tar.gz'
+        if not alias.is_file() or not archive.is_file() or sha(alias) != sha(archive):
+            raise RuntimeError(f'{alias.name}: missing database or alias mismatch')
+        entries = database_entries(archive)
+        if set(entries) != set(expected):
+            raise RuntimeError(f'{archive.name}: database package list differs from manifest')
+        for filename, entry in expected.items():
+            if (entries[filename].get('%SHA256SUM%') != [entry['sha256']]
+                    or entries[filename].get('%CSIZE%') != [str((output / filename).stat().st_size)]):
+                raise RuntimeError(f'{archive.name}: database checksum or size mismatch for {filename}')
+        databases.append(entries)
+    if databases[0] != databases[1]:
+        raise RuntimeError('Package descriptions differ between the db and files databases')
+    return manifest
 
 
 def build(repo, output):
@@ -90,21 +153,18 @@ def build(repo, output):
                     'cp --remove-destination arch-packages.db.tar.gz arch-packages.db && '
                     'cp --remove-destination arch-packages.files.tar.gz arch-packages.files && '
                     'chmod a+r arch-packages.*'], check=True)
+    validate(output)
     print(f'Repository ready: {output}')
 
 
 def publish(repo, output):
-    manifest = json.loads((output / 'manifest.json').read_text())
-    expected = set(PACKAGES)
-    if set(manifest['packages']) != expected:
-        raise RuntimeError('Manifest does not contain all five packages')
-    for entry in manifest['packages'].values():
-        filename = entry['filename']
-        if pathlib.Path(filename).name != filename or sha(output / filename) != entry['sha256']:
-            raise RuntimeError('Artifact checksum or filename validation failed')
+    manifest = validate(output)
     # Authenticated lookup also finds a draft left by an interrupted first upload.
     lookup = subprocess.run(['gh', 'api', f'repos/{repo}/releases/tags/{TAG}'], capture_output=True, text=True)
-    release = json.loads(lookup.stdout)
+    try:
+        release = json.loads(lookup.stdout)
+    except json.JSONDecodeError as error:
+        raise RuntimeError('Cannot read GitHub release metadata; check gh authentication and connectivity') from error
     if lookup.returncode:
         if str(release.get('status')) == '404':
             release = None
