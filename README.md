@@ -114,26 +114,7 @@ stops the update before package files change. No `PKGBUILD` is executed during
 the update check. Packaging and dependency changes need review; Mail's build
 also checks that its Electron dependency matches the downloaded application.
 
-Run an update locally without creating a PR:
-
-```bash
-python scripts/update.py orca
-```
-
-Or open a PR from a **clean checkout of the latest `master`** using your existing
-GitHub CLI login:
-
-```bash
-python scripts/update.py orca --pr --repo filippov-au/arch-packages
-```
-
-PR mode switches the checkout to its update branch. The scheduled workflow gives
-each package a separate checkout. Review the recipe, source URLs, checksums,
-dependency changes, and build results before merging. Bot-created PR checks can
-require approval: a maintainer with write access must select **Approve workflows
-to run** in the PR before the checks execute. This is expected
-[GitHub token behavior](https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs).
-Wait for the checks to pass before merging.
+The scheduled workflow gives each package a separate checkout.
 
 GitHub Actions must have **Allow GitHub Actions to create and approve pull requests**
 enabled in Settings → Actions → General. The workflow uses the temporary built-in
@@ -141,18 +122,9 @@ enabled in Settings → Actions → General. The workflow uses the temporary bui
 
 ## Build and publish
 
-Local builds need Docker, Git, Python 3.11+, and `zstd`. The build runs as a generic
-unprivileged user in an Arch container. It installs dependencies in that container.
-
-```bash
-./install.sh --build-only orca
-python scripts/repository.py build --repo filippov-au/arch-packages
-```
-
-Use an empty `dist/` directory for a complete repository build. Unchanged recipes
-reuse checksum-verified published archives. Changed recipes build from scratch.
-Bump `pkgrel` when modifying a recipe without changing its upstream version;
-publishing refuses to replace an existing package filename with different bytes.
+The build runs as a generic unprivileged user in an Arch container and installs
+dependencies there. Unchanged recipes reuse checksum-verified published archives;
+changed recipes build from scratch.
 
 The **Publish package repository** workflow runs after a push/merge to `master`
 and supports manual dispatch. Its build job has read-only GitHub permissions.
@@ -165,29 +137,17 @@ manifest, verifies that both databases list the same packages with matching size
 and checksums, and verifies their `.db` and `.files` aliases. Missing or stale
 database files stop publication before the release is modified.
 
-To publish a locally assembled repository using an existing `gh` login:
-
-```bash
-python scripts/repository.py publish --repo filippov-au/arch-packages
-```
-
-Keep the `packages` release mutable: its database and manifest are updated in
+The `packages` release is mutable: its database and manifest are updated in
 place. Package archives themselves are never overwritten. GitHub stores the
 binaries as Release assets, not Git objects; no additional hosting service is needed.
 
 ## Privacy and validation
 
-Only package source files and repository tooling belong in Git. Build directories,
-downloaded binaries, output archives, environment files, and common private-key
-files are ignored. Builds receive only tracked/unignored package inputs, with no
-host home directory, Git credentials, Docker socket, or token environment passed
-into the container. Build metadata uses generic `/build` paths.
-
-```bash
-python scripts/audit.py --history
-python scripts/audit.py --packages dist
-python -m unittest discover -s tests -v
-```
+Build directories, downloaded binaries, output archives, environment files, and
+common private-key files are ignored. Builds receive only tracked/unignored
+package inputs, with no host home directory, Git credentials, Docker socket, or
+token environment passed into the container. Build metadata uses generic `/build`
+paths.
 
 The source check looks for common credential patterns and personal home paths in
 files and Git history. Package checks verify neutral build paths and root archive
