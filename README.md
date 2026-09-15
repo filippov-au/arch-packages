@@ -23,7 +23,11 @@ cd arch-packages
 ./install.sh
 ```
 
-Or install a subset:
+The installer asks which packages to install. Enter their numbers separated by
+spaces, or `all` to select every package. Enter `q` or leave the answer blank to
+cancel.
+
+Or select packages directly without the selection prompt:
 
 ```bash
 ./install.sh orca proton_pass

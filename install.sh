@@ -8,6 +8,7 @@ while (($#)); do
     --build-only) build_only=1 ;;
     -h|--help)
       echo 'Usage: ./install.sh [--build-only] [orca proton_pass proton_mail proton_drive]'
+      echo 'Without package names, prompts for packages to install (--build-only builds all).'
       exit 0 ;;
     orca|stably-orca|stably-orca-bin) selected+=(orca) ;;
     proton_pass|proton-pass-bin) selected+=(proton_pass) ;;
@@ -17,12 +18,50 @@ while (($#)); do
   esac
   shift
 done
-((${#selected[@]})) || selected=(orca proton_pass proton_mail proton_drive)
 if ((build_only)); then
+  ((${#selected[@]})) || selected=(orca proton_pass proton_mail proton_drive)
   for package in "${selected[@]}"; do
     bash scripts/build.sh "$package" "dist/$package"
   done
   exit 0
+fi
+if ((${#selected[@]} == 0)); then
+  printf '%s\n' 'Which packages would you like to install?' \
+    '  1) Orca ADE' \
+    '  2) Proton Pass' \
+    '  3) Proton Mail' \
+    '  4) Proton Drive CLI'
+  while true; do
+    printf 'Enter numbers separated by spaces (e.g. 1 2), all, or q to cancel: '
+    if ! IFS= read -r answer || [[ -z ${answer//[[:space:]]/} || $answer == q ]]; then
+      echo 'Installation cancelled.'
+      exit 0
+    fi
+    choices=()
+    read -r -a choices <<< "$answer"
+    selected=()
+    valid=1
+    for choice in "${choices[@]}"; do
+      case "$choice" in
+        1) package=orca ;;
+        2) package=proton_pass ;;
+        3) package=proton_mail ;;
+        4) package=proton_drive ;;
+        all)
+          if ((${#choices[@]} == 1)); then
+            selected=(orca proton_pass proton_mail proton_drive)
+            break
+          fi
+          valid=0; break ;;
+        *) valid=0; break ;;
+      esac
+      if [[ " ${selected[*]} " != *" $package "* ]]; then
+        selected+=("$package")
+      fi
+    done
+    if ((valid)); then break; fi
+    echo 'Invalid selection. Choose numbers from 1 to 4, all, or q.' >&2
+  done
 fi
 declare -A names=(
   [orca]=stably-orca-bin
