@@ -15,7 +15,15 @@ installing.
 
 ## Install on an Arch Linux machine
 
-Clone this repository and run:
+Installation uses Bash and standard Arch system tools; Python is not required.
+
+Run the standalone installer without cloning:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/filippov-au/arch-packages/master/install.sh | bash
+```
+
+Or clone this repository and run:
 
 ```bash
 git clone https://github.com/filippov-au/arch-packages.git
