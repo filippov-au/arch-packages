@@ -34,5 +34,15 @@ declare -A names=(
 )
 targets=()
 for package in "${selected[@]}"; do targets+=("arch-packages/${names[$package]}"); done
+backend=$(python scripts/system.py)
 sudo python scripts/enable-repo.py
-sudo pacman -Syu "${targets[@]}"
+if [[ $backend == omarchy ]]; then
+  echo 'Detected Omarchy: updating through omarchy update before installing packages.'
+  omarchy update -y
+  # This explicit install reinstalls equal versions without requesting another
+  # system upgrade. Omarchy already handled synchronization and migrations.
+  sudo pacman -S "${targets[@]}"
+else
+  echo 'Detected Arch Linux: updating and installing through pacman.'
+  sudo pacman -Syu "${targets[@]}"
+fi

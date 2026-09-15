@@ -24,9 +24,18 @@ Or install a subset:
 ```
 
 The installer backs up `/etc/pacman.conf`, puts this repository before Arch's
-repositories, then runs a full system upgrade with the selected packages as
-explicit targets. Explicit targets reinstall an equal version too, so an existing
-AUR Orca installation gets the customized launcher.
+repositories, and detects the system automatically:
+
+- **Omarchy:** runs `omarchy update -y` for the full update workflow, including
+  snapshots and migrations, then `sudo pacman -S` for the selected packages.
+- **Arch Linux:** runs `sudo pacman -Syu` with the selected packages as targets.
+
+Detection uses `/etc/os-release` and the `omarchy` command, including older Omarchy
+installations that identify as Arch. Failed updates stop the installer before the
+package installation step. Omarchy's `-y` runs its update without additional
+confirmation prompts; the final package installation still asks for confirmation.
+Explicit targets reinstall an equal version too, so an existing AUR Orca
+installation gets the customized launcher.
 
 For manual configuration, add this **above `[core]` and `[extra]`**, outside the
 `[options]` section:
@@ -37,7 +46,14 @@ SigLevel = Optional TrustAll
 Server = https://github.com/filippov-au/arch-packages/releases/download/packages
 ```
 
-Then run `sudo pacman -Syu`. To replace the existing Orca build immediately:
+On **Omarchy**, update through its normal entrypoint, then install Orca:
+
+```bash
+omarchy update
+sudo pacman -S arch-packages/stably-orca-bin
+```
+
+On **Arch Linux**, update and install Orca together:
 
 ```bash
 sudo pacman -Syu arch-packages/stably-orca-bin

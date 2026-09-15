@@ -1,8 +1,10 @@
 import importlib.util
 import pathlib
+import sys
 import unittest
 
 path = pathlib.Path(__file__).resolve().parents[1] / 'scripts' / 'enable-repo.py'
+sys.path.insert(0, str(path.parent))
 spec = importlib.util.spec_from_file_location('enable_repo', path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)

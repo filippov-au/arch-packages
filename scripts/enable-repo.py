@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from system import update_backend
 
 CONFIG = pathlib.Path('/etc/pacman.conf')
 STANZA = '''[arch-packages]
@@ -46,4 +47,5 @@ if __name__ == '__main__':
             pathlib.Path(filename).unlink(missing_ok=True)
     else:
         print('Repository already configured first.')
-    print('Refresh and upgrade with: sudo pacman -Syu')
+    command = 'omarchy update' if update_backend() == 'omarchy' else 'sudo pacman -Syu'
+    print(f'Refresh and upgrade with: {command}')
