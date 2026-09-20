@@ -1,7 +1,7 @@
 pkgbase = stremio-linux-shell
 	pkgdesc = Stremio streaming application (native GTK4 Linux shell)
 	pkgver = 1.2.0
-	pkgrel = 1
+	pkgrel = 2
 	url = https://github.com/Stremio/stremio-linux-shell
 	arch = x86_64
 	license = GPL-3.0-only
@@ -28,7 +28,9 @@ pkgbase = stremio-linux-shell
 	options = !debug
 	source = stremio-linux-shell-1.2.0.tar.gz::https://github.com/Stremio/stremio-linux-shell/archive/refs/tags/v1.2.0.tar.gz
 	source = stremio.sh
+	source = 0001-use-gtk-idle-inhibition.patch
 	sha256sums = aff0e1486aabccb25d4165792b3ce6dcb741bc4b50af4601f66ac3d41fb70670
 	sha256sums = 6f2f3b8b0b8aedc0a88caf47169e291b2ac8ff9b6ddc49335e3323cc37637c76
+	sha256sums = a26589892d4dff6a5caf5d8f3e6ceca89beb400cb4585c10452fbe156a1a4b6e
 
 pkgname = stremio-linux-shell

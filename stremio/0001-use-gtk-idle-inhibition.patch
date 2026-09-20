@@ -1,0 +1,144 @@
+--- a/src/app/window/imp.rs
++++ b/src/app/window/imp.rs
+@@ -1,23 +1,19 @@
+-use std::{cell::Cell, fs::File, os::fd::AsFd, sync::Arc};
++use std::{cell::Cell, fs::File, os::fd::AsFd};
+ 
+ use adw::prelude::*;
+ use adw::subclass::prelude::*;
+ use ashpd::{
+     Uri, WindowIdentifier,
+     desktop::{
+-        Request,
+         background::Background,
+-        inhibit::{InhibitFlags, InhibitOptions, InhibitProxy},
+         open_uri::OpenFileRequest,
+     },
+-    enumflags2::BitFlags,
+ };
+ use gtk::{
+     gio::Settings,
+     glib::{self, clone, subclass::InitializingObject},
+     prelude::WidgetExt,
+ };
+-use tokio::sync::Mutex;
+ use tracing::error;
+ 
+ use crate::{app::config::APP_ID, spawn_local, utils::IS_DESKTOP_KDE};
+@@ -32,7 +28,8 @@
+     header: TemplateChild<adw::HeaderBar>,
+     #[template_child]
+     pub overlay: TemplateChild<gtk::Overlay>,
+-    pub inhibit_request: Arc<Mutex<Option<Request<()>>>>,
++    idle_inhibit_requested: Cell<bool>,
++    idle_inhibit_cookie: Cell<u32>,
+ }
+ 
+ impl Window {
+@@ -56,53 +53,41 @@
+     }
+ 
+     pub fn disable_idling(&self) {
+-        let object = self.obj();
+-        let inhibit_request = self.inhibit_request.clone();
+-
+-        spawn_local!(clone!(
+-            #[weak]
+-            object,
+-            async move {
+-                if let Some(request) = inhibit_request.lock().await.take()
+-                    && let Err(e) = request.close().await
+-                {
+-                    error!("Failed to close the inhibit request: {e}");
+-                }
+-
+-                if let Ok(proxy) = InhibitProxy::new().await {
+-                    let identifier = WindowIdentifier::from_native(&object).await;
+-
+-                    tokio::spawn(async move {
+-                        let mut flags = BitFlags::empty();
+-                        flags.insert(InhibitFlags::Idle);
+-
+-                        let options = InhibitOptions::default()
+-                            .set_reason("Prevent screen from going blank during media playback");
+-
+-                        *inhibit_request.lock().await = proxy
+-                            .inhibit(identifier.as_ref(), flags, options)
+-                            .await
+-                            .map_err(|e| error!("Failed to prevent idling: {e}"))
+-                            .ok();
+-                    });
+-                }
+-            }
+-        ));
++        self.idle_inhibit_requested.set(true);
++        let object = self.obj();
++
++        // GTK uses the Wayland idle-inhibit protocol for this window, with
++        // desktop-specific fallbacks on other backends. The portal alone may
++        // have no working Inhibit backend on wlroots desktops.
++        if self.idle_inhibit_cookie.get() != 0 || !object.is_mapped() {
++            return;
++        }
++
++        if let Some(application) = object.application() {
++            let cookie = application.inhibit(
++                Some(&*object),
++                gtk::ApplicationInhibitFlags::IDLE,
++                Some("Prevent screen from going blank during media playback"),
++            );
++            self.idle_inhibit_cookie.set(cookie);
++            if cookie == 0 {
++                error!("Failed to prevent idling");
++            }
++        }
+     }
+ 
+     pub fn enable_idling(&self) {
+-        let inhibit_request = self.inhibit_request.clone();
+-
+-        spawn_local!(async move {
+-            let mut inhibit_request = inhibit_request.lock().await;
+-            if let Some(request) = inhibit_request.take() {
+-                request
+-                    .close()
+-                    .await
+-                    .map_err(|e| error!("Failed to allow idling: {e}"))
+-                    .ok();
+-            }
+-        });
++        self.idle_inhibit_requested.set(false);
++        self.release_idle_inhibitor();
++    }
++
++    fn release_idle_inhibitor(&self) {
++        let cookie = self.idle_inhibit_cookie.replace(0);
++        if cookie != 0
++            && let Some(application) = self.obj().application()
++        {
++            application.uninhibit(cookie);
++        }
+     }
+ 
+     pub fn open_uri(&self, uri: String) {
+@@ -189,6 +174,20 @@
+ }
+ 
+ impl WidgetImpl for Window {
++    fn map(&self) {
++        self.parent_map();
++        if self.idle_inhibit_requested.get() {
++            self.disable_idling();
++        }
++    }
++
++    fn unmap(&self) {
++        // Release before GTK tears down the surface; restore on map only if
++        // playback has not paused or ended while the window was hidden.
++        self.release_idle_inhibitor();
++        self.parent_unmap();
++    }
++
+     fn realize(&self) {
+         self.parent_realize();
+ 

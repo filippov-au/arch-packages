@@ -4,7 +4,7 @@
 
 pkgname=stremio-linux-shell
 pkgver=1.2.0
-pkgrel=1
+pkgrel=2
 pkgdesc='Stremio streaming application (native GTK4 Linux shell)'
 arch=('x86_64')
 url='https://github.com/Stremio/stremio-linux-shell'
@@ -19,12 +19,16 @@ provides=('stremio')
 conflicts=('stremio' 'stremio-beta' 'stremio-git' 'linux-stremio-shell')
 options=('!debug')
 source=("${pkgname}-${pkgver}.tar.gz::${url}/archive/refs/tags/v${pkgver}.tar.gz"
-        'stremio.sh')
+        'stremio.sh'
+        '0001-use-gtk-idle-inhibition.patch')
 sha256sums=('aff0e1486aabccb25d4165792b3ce6dcb741bc4b50af4601f66ac3d41fb70670'
-            '6f2f3b8b0b8aedc0a88caf47169e291b2ac8ff9b6ddc49335e3323cc37637c76')
+            '6f2f3b8b0b8aedc0a88caf47169e291b2ac8ff9b6ddc49335e3323cc37637c76'
+            'a26589892d4dff6a5caf5d8f3e6ceca89beb400cb4585c10452fbe156a1a4b6e')
 
 prepare() {
   cd "${pkgname}-${pkgver}"
+  # Use GTK's native Wayland inhibitor where the portal has no working backend.
+  patch -Np1 -i "${srcdir}/0001-use-gtk-idle-inhibition.patch"
   # Native installs load translations from /usr, not the source or Flatpak tree.
   sed -i 's|concat!(env!("CARGO_MANIFEST_DIR"), "/po")|"/usr/share/locale"|;
           s|/app/share/locale|/usr/share/locale|' src/config.rs
