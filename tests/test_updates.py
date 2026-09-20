@@ -36,8 +36,11 @@ class VendorTests(unittest.TestCase):
         assets = []
         for spec in config['assets']:
             url = vendor.metadata_values(metadata, spec['source'])[0].split('::')[-1].replace(current, version)
-            algorithm = 'sha256' if config['provider'] == 'github' else 'sha512'
-            assets.append(dict(spec, url=url, algorithm=algorithm, digest=HASHES[algorithm]))
+            if config['provider'] == 'github-source':
+                assets.append(dict(spec, url=url, kind='source-archive'))
+            else:
+                algorithm = 'sha256' if config['provider'] == 'github' else 'sha512'
+                assets.append(dict(spec, url=url, algorithm=algorithm, digest=HASHES[algorithm]))
         return directory, config, version, assets
 
     def test_all_recipes_preserve_packaging_and_local_checksums(self):
@@ -102,6 +105,30 @@ class VendorTests(unittest.TestCase):
     def test_changed_vendor_url_rejected_before_download(self):
         directory, config, version, assets = self.fixture()
         assets[0]['url'] = 'https://example.invalid/unreviewed.deb'
+        with patch.object(vendor, 'download_hashes') as download:
+            with self.assertRaisesRegex(RuntimeError, 'URL differs'):
+                vendor.prepare(directory, config, version, assets)
+        download.assert_not_called()
+
+    def test_github_source_pins_official_archive_without_claiming_vendor_digest(self):
+        _, config, _, _ = self.fixture('stremio')
+        data = {'tag_name': 'v1.3.0', 'draft': False, 'prerelease': False,
+                'tarball_url': 'https://example.invalid/unreviewed.tar.gz'}
+        with patch.object(vendor, 'get_json', return_value=data):
+            version, assets = vendor.latest(config)
+            self.assertEqual(version, '1.3.0')
+            self.assertEqual(assets[0]['url'],
+                             'https://github.com/Stremio/stremio-linux-shell/archive/refs/tags/v1.3.0.tar.gz')
+            self.assertNotIn('digest', assets[0])
+            with patch.object(vendor.urllib.request, 'urlopen', return_value=io.BytesIO(DATA)):
+                self.assertEqual(vendor.download_hashes(assets[0]), HASHES)
+            data['prerelease'] = True
+            with self.assertRaisesRegex(RuntimeError, 'stable'):
+                vendor.latest(config)
+
+    def test_source_archive_url_change_is_rejected_before_download(self):
+        directory, config, version, assets = self.fixture('stremio')
+        assets[0]['url'] = 'https://example.invalid/source.tar.gz'
         with patch.object(vendor, 'download_hashes') as download:
             with self.assertRaisesRegex(RuntimeError, 'URL differs'):
                 vendor.prepare(directory, config, version, assets)

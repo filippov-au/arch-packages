@@ -1,0 +1,10 @@
+{
+  "provider": "github-source",
+  "url": "https://api.github.com/repos/Stremio/stremio-linux-shell/releases/latest",
+  "assets": [
+    {
+      "source": "source",
+      "checksums": ["sha256sums"]
+    }
+  ]
+}

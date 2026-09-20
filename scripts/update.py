@@ -8,7 +8,7 @@ import tempfile
 import vendor
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-PACKAGES = ('orca', 'proton_pass', 'proton_mail', 'proton_drive')
+PACKAGES = ('orca', 'proton_pass', 'proton_mail', 'proton_drive', 'stremio')
 
 
 def run(*args, cwd=None, **kwargs):
@@ -41,7 +41,7 @@ def update_vendor(package, config, pr=False, repo=None):
         run('git', 'switch', '-c', branch)
     for name, content in changes.items():
         (directory / name).write_bytes(content)
-    print(f'{package}: {current} -> {latest} (verified vendor release)')
+    print(f'{package}: {current} -> {latest} (pinned vendor release)')
     if pr:
         title = f'Update {package}: {latest}'
         run('git', 'add', '--', package)
@@ -49,9 +49,14 @@ def update_vendor(package, config, pr=False, repo=None):
         run('git', 'push', '--set-upstream', 'origin', branch)
         with tempfile.TemporaryDirectory() as tmp:
             body = pathlib.Path(tmp) / 'pr.md'
+            verification = (
+                'Official source archive downloaded over HTTPS and its SHA-256 pinned. '
+                'Upstream does not publish an independent checksum for this source archive. '
+                if config['provider'] == 'github-source' else
+                'Downloads were verified against vendor-published checksums. ')
             body.write_text(f'Update `{package}` from `{current}` to `{latest}`.\n\n'
                             f'Vendor release feed: {config["url"]}\n\n'
-                            'Downloads were verified against vendor-published checksums. '
+                            f'{verification}'
                             'Local packaging and launcher customizations were preserved. '
                             'No PKGBUILD was executed by the update checker. '
                             'Review dependencies and approve the package build checks before merging.\n')

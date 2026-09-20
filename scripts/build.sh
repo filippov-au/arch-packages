@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 package=${1:?Usage: scripts/build.sh PACKAGE [OUTPUT_DIRECTORY]}
-case "$package" in orca|proton_pass|proton_mail|proton_drive) ;; *) exit 2 ;; esac
+case "$package" in orca|proton_pass|proton_mail|proton_drive|stremio) ;; *) exit 2 ;; esac
 output=$(realpath -m "${2:-dist}")
 mkdir -p "$output"
 context=$(mktemp -d)

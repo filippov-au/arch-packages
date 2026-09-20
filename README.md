@@ -1,6 +1,6 @@
 # Arch packages
 
-Reviewed Arch Linux packages for Orca ADE, Proton Pass, Proton Mail, and Proton Drive CLI.
+Reviewed Arch Linux packages for Orca ADE, Proton Pass, Proton Mail, Proton Drive CLI, and Stremio.
 
 This is a community-maintained package repository. The hosted packages target
 **x86_64 Arch Linux and Omarchy**. Orca's customized launcher requires a Wayland
@@ -96,6 +96,7 @@ Do not use `-Suu` to force downgrades when your installed version is newer.
 | `proton_pass` | `proton-pass-bin` | Proton's Linux release feed |
 | `proton_mail` | `proton-mail-bin` | Proton's Linux release feed |
 | `proton_drive` | `proton-drive-cli-bin` | Proton's CLI release feed |
+| `stremio` | `stremio-linux-shell` | Official GitHub source releases |
 
 See each `PKGBUILD` for its version, dependencies, checksums, and upstream license.
 The published binary repository targets **x86_64** machines, including packages
@@ -105,6 +106,13 @@ Orca uses the extracted official AppImage, sets `APPDIR`, disables Vulkan, and
 forces native Wayland. Its command is `stably-orca`; GNOME's `orca` package is an
 unrelated screen reader. Proton Drive is the official CLI, not a desktop client.
 
+Stremio builds the current GTK4 Linux shell from source. Its package version is
+the Linux shell version, separate from the hosted Stremio web
+interface's version. The command is `stremio`; select it with `./install.sh stremio`.
+It provides and conflicts with the legacy AUR `stremio` Qt5 package, so pacman
+will ask to remove that package if it is installed. See the
+[AUR and upstream review](stremio/REVIEW.md) for packaging decisions.
+
 ## Update pull requests
 
 The **Check package updates** workflow runs daily and can also be started from
@@ -113,14 +121,17 @@ stable vendor version. Existing PRs for the same version are not duplicated.
 There is no automatic merge.
 
 Each package's `.upstream.json` identifies its official release feed and assets.
-The checker downloads new stable releases, verifies vendor-published checksums,
+The checker downloads new stable releases, verifies vendor-published binary checksums,
 and updates `pkgver`, `pkgrel`, source checksums, and `.SRCINFO`. It does not wait
 for AUR updates or import third-party packaging changes. Recipes, dependencies,
 and launchers are maintained here; existing attribution and license notices remain.
 
-The updater selects the highest stable Proton version or Orca's latest stable
-GitHub release, and never automatically downgrades. It verifies both Drive
-architectures and preserves launcher checksums, including Mail's additional
+The updater selects the highest stable Proton version or the latest stable
+GitHub release for Orca and Stremio, and never automatically downgrades. Stremio's
+GitHub source archives have no independently published checksum: the updater
+downloads the reviewed versioned HTTPS URL and pins its SHA-256 for makepkg.
+Stremio's Rust dependencies are locked by upstream's Cargo.lock. The updater
+verifies both Drive architectures and preserves launcher checksums, including Mail's additional
 BLAKE2 checksum. A changed download URL, missing asset, or checksum mismatch
 stops the update before package files change. No `PKGBUILD` is executed during
 the update check. Packaging and dependency changes need review; Mail's build

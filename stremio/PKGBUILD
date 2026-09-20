@@ -1,0 +1,66 @@
+# Upstream: Stremio <https://github.com/Stremio/stremio-linux-shell>
+# Legacy AUR recipe reviewed: Daniel Bermond <dbermond@archlinux.org>
+# This recipe builds the current Linux shell, not the legacy Qt5 shell.
+
+pkgname=stremio-linux-shell
+pkgver=1.2.0
+pkgrel=1
+pkgdesc='Stremio streaming application (native GTK4 Linux shell)'
+arch=('x86_64')
+url='https://github.com/Stremio/stremio-linux-shell'
+license=('GPL-3.0-only')
+depends=('glibc' 'gcc-libs' 'gtk4>=4.22' 'libadwaita>=1.9' 'webkitgtk-6.0>=2.52'
+         'libepoxy' 'mpv' 'nodejs' 'hicolor-icon-theme')
+makedepends=('rust' 'gettext' 'pkgconf')
+optdepends=('xdg-desktop-portal: desktop integration'
+            'gst-plugins-good: additional WebKit media codecs'
+            'gst-libav: additional WebKit media codecs')
+provides=('stremio')
+conflicts=('stremio' 'stremio-beta' 'stremio-git' 'linux-stremio-shell')
+options=('!debug')
+source=("${pkgname}-${pkgver}.tar.gz::${url}/archive/refs/tags/v${pkgver}.tar.gz"
+        'stremio.sh')
+sha256sums=('aff0e1486aabccb25d4165792b3ce6dcb741bc4b50af4601f66ac3d41fb70670'
+            '6f2f3b8b0b8aedc0a88caf47169e291b2ac8ff9b6ddc49335e3323cc37637c76')
+
+prepare() {
+  cd "${pkgname}-${pkgver}"
+  # Native installs load translations from /usr, not the source or Flatpak tree.
+  sed -i 's|concat!(env!("CARGO_MANIFEST_DIR"), "/po")|"/usr/share/locale"|;
+          s|/app/share/locale|/usr/share/locale|' src/config.rs
+  sed -i 's|/app/bin/stremio|/usr/bin/stremio|' data/com.stremio.Stremio.service
+  export CARGO_HOME="${srcdir}/cargo-home"
+  cargo fetch --locked
+}
+
+build() {
+  cd "${pkgname}-${pkgver}"
+  export CARGO_HOME="${srcdir}/cargo-home"
+  cargo build --release --frozen
+  # Upstream spawns msgfmt without waiting; generate translations synchronously.
+  local translation language
+  for translation in po/*.po; do
+    language=${translation##*/}
+    language=${language%.po}
+    mkdir -p "po/${language}/LC_MESSAGES"
+    msgfmt "$translation" -o "po/${language}/LC_MESSAGES/stremio.mo"
+  done
+}
+
+package() {
+  cd "${pkgname}-${pkgver}"
+  install -Dm755 target/release/stremio-linux-shell "${pkgdir}/usr/lib/stremio/stremio"
+  install -Dm644 data/server.js "${pkgdir}/usr/lib/stremio/server.js"
+  install -Dm755 "${srcdir}/stremio.sh" "${pkgdir}/usr/bin/stremio"
+  install -Dm644 data/com.stremio.Stremio.desktop -t "${pkgdir}/usr/share/applications/"
+  install -Dm644 data/com.stremio.Stremio.service -t "${pkgdir}/usr/share/dbus-1/services/"
+  install -Dm644 data/com.stremio.Stremio.gschema.xml -t "${pkgdir}/usr/share/glib-2.0/schemas/"
+  install -Dm644 data/com.stremio.Stremio.metainfo.xml -t "${pkgdir}/usr/share/metainfo/"
+  install -Dm644 data/icons/com.stremio.Stremio.svg -t "${pkgdir}/usr/share/icons/hicolor/scalable/apps/"
+  install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+  local translation language
+  for translation in po/*/LC_MESSAGES/stremio.mo; do
+    language=${translation#po/}
+    install -Dm644 "$translation" "${pkgdir}/usr/share/locale/${language}"
+  done
+}

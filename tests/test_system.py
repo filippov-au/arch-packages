@@ -95,14 +95,22 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(commands, ['sudo configure-repo', 'omarchy update -y',
                                     'sudo pacman -S arch-packages/stably-orca-bin '
                                     'arch-packages/proton-pass-bin arch-packages/proton-mail-bin '
-                                    'arch-packages/proton-drive-cli-bin'])
+                                    'arch-packages/proton-drive-cli-bin arch-packages/stremio-linux-shell'])
 
     def test_invalid_selection_reprompts_without_installing_partial_selection(self):
-        result, commands = self.run_installer('pacman', args=(), input_text='1 5\n3\n')
+        result, commands = self.run_installer('pacman', args=(), input_text='1 6\n3\n')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('Invalid selection', result.stderr)
         self.assertEqual(commands, ['sudo configure-repo',
                                     'sudo pacman -Syu arch-packages/proton-mail-bin'])
+
+    def test_stremio_name_alias_and_menu_selection(self):
+        for args, input_text in ((('stremio',), ''), (('stremio-linux-shell',), ''), ((), '5\n')):
+            with self.subTest(args=args):
+                result, commands = self.run_installer('pacman', args=args, input_text=input_text)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(commands, ['sudo configure-repo',
+                                            'sudo pacman -Syu arch-packages/stremio-linux-shell'])
 
     def test_cancel_or_eof_does_not_modify_system(self):
         for input_text in ('q\n', '\n', '   \n', '', '1 invalid\n'):

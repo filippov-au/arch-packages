@@ -1,4 +1,4 @@
-"""Prepare binary package updates from vendor feeds without executing recipes."""
+"""Prepare package updates from vendor feeds without executing recipes."""
 import hashlib
 import json
 import pathlib
@@ -24,11 +24,21 @@ def get_json(url):
 
 def latest(config):
     data = get_json(config['url'])
-    if config['provider'] == 'github':
+    if config['provider'] in ('github', 'github-source'):
         if data.get('draft') or data.get('prerelease'):
             raise RuntimeError('Expected a stable GitHub release')
         version = data['tag_name'].removeprefix('v')
         version_key(version)
+        if config['provider'] == 'github-source':
+            # GitHub-generated source archives have no published asset digest.
+            # Pin their downloaded bytes, using only this reviewed repository's
+            # versioned HTTPS URL; never accept a redirect URL from feed data.
+            repository = re.fullmatch(
+                r'https://api\.github\.com/repos/([\w.-]+/[\w.-]+)/releases/latest', config['url'])
+            if not repository:
+                raise RuntimeError('Unsupported GitHub source release feed')
+            url = f'https://github.com/{repository[1]}/archive/refs/tags/v{version}.tar.gz'
+            return version, [dict(spec, url=url, kind='source-archive') for spec in config['assets']]
         assets = []
         for spec in config['assets']:
             matches = [asset for asset in data['assets'] if asset['name'] == spec['name']]
@@ -61,14 +71,14 @@ def latest(config):
 
 
 def download_hashes(asset):
-    print(f"Verifying vendor download: {asset['url']}", flush=True)
+    print(f"Hashing vendor download: {asset['url']}", flush=True)
     hashes = {name: hashlib.new(name) for name in ALGORITHMS.values()}
     with urllib.request.urlopen(asset['url'], timeout=120) as response:
         while block := response.read(1024 * 1024):
             for digest in hashes.values():
                 digest.update(block)
     result = {name: digest.hexdigest() for name, digest in hashes.items()}
-    if result[asset['algorithm']] != asset['digest']:
+    if asset.get('kind') != 'source-archive' and result[asset['algorithm']] != asset['digest']:
         raise RuntimeError('Vendor download checksum mismatch; package files were not changed')
     return result
 

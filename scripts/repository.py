@@ -12,7 +12,7 @@ import urllib.error
 import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-PACKAGES = ('orca', 'proton_pass', 'proton_mail', 'proton_drive')
+PACKAGES = ('orca', 'proton_pass', 'proton_mail', 'proton_drive', 'stremio')
 NAME = 'arch-packages'
 TAG = 'packages'
 

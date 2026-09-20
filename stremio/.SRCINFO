@@ -1,0 +1,34 @@
+pkgbase = stremio-linux-shell
+	pkgdesc = Stremio streaming application (native GTK4 Linux shell)
+	pkgver = 1.2.0
+	pkgrel = 1
+	url = https://github.com/Stremio/stremio-linux-shell
+	arch = x86_64
+	license = GPL-3.0-only
+	makedepends = rust
+	makedepends = gettext
+	makedepends = pkgconf
+	depends = glibc
+	depends = gcc-libs
+	depends = gtk4>=4.22
+	depends = libadwaita>=1.9
+	depends = webkitgtk-6.0>=2.52
+	depends = libepoxy
+	depends = mpv
+	depends = nodejs
+	depends = hicolor-icon-theme
+	optdepends = xdg-desktop-portal: desktop integration
+	optdepends = gst-plugins-good: additional WebKit media codecs
+	optdepends = gst-libav: additional WebKit media codecs
+	provides = stremio
+	conflicts = stremio
+	conflicts = stremio-beta
+	conflicts = stremio-git
+	conflicts = linux-stremio-shell
+	options = !debug
+	source = stremio-linux-shell-1.2.0.tar.gz::https://github.com/Stremio/stremio-linux-shell/archive/refs/tags/v1.2.0.tar.gz
+	source = stremio.sh
+	sha256sums = aff0e1486aabccb25d4165792b3ce6dcb741bc4b50af4601f66ac3d41fb70670
+	sha256sums = 6f2f3b8b0b8aedc0a88caf47169e291b2ac8ff9b6ddc49335e3323cc37637c76
+
+pkgname = stremio-linux-shell
