@@ -42,11 +42,12 @@ Or select packages directly without the selection prompt:
 ```
 
 The installer backs up `/etc/pacman.conf`, puts this repository before Arch's
-repositories, and detects the system automatically:
+repositories, forces a fresh package index (the hosted database is replaced in
+place), and detects the system automatically:
 
 - **Omarchy:** runs `omarchy update -y` for the full update workflow, including
   snapshots and migrations, then `sudo pacman -S` for the selected packages.
-- **Arch Linux:** runs `sudo pacman -Syu` with the selected packages as targets.
+- **Arch Linux:** runs `sudo pacman -Syyu` with the selected packages as targets.
 
 Detection uses `/etc/os-release` and the `omarchy` command, including older Omarchy
 installations that identify as Arch. Failed updates stop the installer before the

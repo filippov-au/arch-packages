@@ -173,6 +173,9 @@ install_main() {
   backend=$(update_backend)
   sudo bash -c "$(declare -f configure_repo enable_repo)"$'\nenable_repo'
   if [[ $backend == omarchy ]]; then
+    # Release database assets are replaced in place. Force a refresh so an
+    # older local index cannot hide a newly published package.
+    sudo pacman -Syy
     echo 'Detected Omarchy: updating through omarchy update before installing packages.'
     omarchy update -y
     # This explicit install reinstalls equal versions without requesting another
@@ -180,7 +183,7 @@ install_main() {
     sudo pacman -S "${targets[@]}"
   else
     echo 'Detected Arch Linux: updating and installing through pacman.'
-    sudo pacman -Syu "${targets[@]}"
+    sudo pacman -Syyu "${targets[@]}"
   fi
 }
 

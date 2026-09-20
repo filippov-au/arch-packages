@@ -54,7 +54,7 @@ class DetectionTests(unittest.TestCase):
 
 
 class InstallerTests(unittest.TestCase):
-    def run_installer(self, backend, update_status=0, args=('orca',), input_text=''):
+    def run_installer(self, backend, update_status=0, args=('orca',), input_text='', refresh_status=0):
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)
             release = root / 'os-release'
@@ -65,7 +65,8 @@ class InstallerTests(unittest.TestCase):
             (binaries / 'bash').symlink_to('/bin/bash')
             scripts = {
                 'sudo': 'if [[ "$1 $2" == "bash -c" ]]; then echo "sudo configure-repo" >> "$TEST_LOG"; '
-                        'else printf "sudo %s\\n" "$*" >> "$TEST_LOG"; fi\n',
+                        'else printf "sudo %s\\n" "$*" >> "$TEST_LOG"; fi\n'
+                        'if [[ "$1 $2" == "pacman -Syy" ]]; then exit "$TEST_REFRESH_STATUS"; fi\n',
                 'pacman': 'exit 99\n',
             }
             if backend == 'omarchy':
@@ -76,7 +77,8 @@ class InstallerTests(unittest.TestCase):
                 path.chmod(0o755)
             log = root / 'commands.log'
             env = dict(os.environ, PATH=str(binaries),
-                       TEST_BACKEND=backend, TEST_LOG=str(log), TEST_UPDATE_STATUS=str(update_status))
+                       TEST_BACKEND=backend, TEST_LOG=str(log), TEST_UPDATE_STATUS=str(update_status),
+                       TEST_REFRESH_STATUS=str(refresh_status))
             result = subprocess.run(['/bin/bash', str(root / 'install.sh'), *args], env=env,
                                     input=input_text, capture_output=True, text=True)
             return result, log.read_text().splitlines() if log.exists() else []
@@ -86,13 +88,13 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('Which packages', result.stdout)
         self.assertEqual(commands, ['sudo configure-repo',
-                                    'sudo pacman -Syu arch-packages/proton-pass-bin '
+                                    'sudo pacman -Syyu arch-packages/proton-pass-bin '
                                     'arch-packages/proton-drive-cli-bin'])
 
     def test_prompt_can_select_all_packages(self):
         result, commands = self.run_installer('omarchy', args=(), input_text='all\n')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(commands, ['sudo configure-repo', 'omarchy update -y',
+        self.assertEqual(commands, ['sudo configure-repo', 'sudo pacman -Syy', 'omarchy update -y',
                                     'sudo pacman -S arch-packages/stably-orca-bin '
                                     'arch-packages/proton-pass-bin arch-packages/proton-mail-bin '
                                     'arch-packages/proton-drive-cli-bin arch-packages/stremio-linux-shell'])
@@ -102,7 +104,7 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('Invalid selection', result.stderr)
         self.assertEqual(commands, ['sudo configure-repo',
-                                    'sudo pacman -Syu arch-packages/proton-mail-bin'])
+                                    'sudo pacman -Syyu arch-packages/proton-mail-bin'])
 
     def test_stremio_name_alias_and_menu_selection(self):
         for args, input_text in ((('stremio',), ''), (('stremio-linux-shell',), ''), ((), '5\n')):
@@ -110,7 +112,7 @@ class InstallerTests(unittest.TestCase):
                 result, commands = self.run_installer('pacman', args=args, input_text=input_text)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(commands, ['sudo configure-repo',
-                                            'sudo pacman -Syu arch-packages/stremio-linux-shell'])
+                                            'sudo pacman -Syyu arch-packages/stremio-linux-shell'])
 
     def test_cancel_or_eof_does_not_modify_system(self):
         for input_text in ('q\n', '\n', '   \n', '', '1 invalid\n'):
@@ -123,7 +125,7 @@ class InstallerTests(unittest.TestCase):
     def test_omarchy_updates_before_explicit_install(self):
         result, commands = self.run_installer('omarchy')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(commands, ['sudo configure-repo', 'omarchy update -y',
+        self.assertEqual(commands, ['sudo configure-repo', 'sudo pacman -Syy', 'omarchy update -y',
                                     'sudo pacman -S arch-packages/stably-orca-bin'])
 
     def test_arch_uses_pacman_system_upgrade(self):
@@ -131,9 +133,14 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn('Which packages', result.stdout)
         self.assertEqual(commands, ['sudo configure-repo',
-                                    'sudo pacman -Syu arch-packages/stably-orca-bin'])
+                                    'sudo pacman -Syyu arch-packages/stably-orca-bin'])
 
     def test_failed_omarchy_update_stops_installation(self):
         result, commands = self.run_installer('omarchy', update_status=1)
         self.assertNotEqual(result.returncode, 0)
-        self.assertFalse(any('pacman' in command for command in commands))
+        self.assertEqual(commands, ['sudo configure-repo', 'sudo pacman -Syy', 'omarchy update -y'])
+
+    def test_failed_refresh_stops_update_and_installation(self):
+        result, commands = self.run_installer('omarchy', refresh_status=1)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(commands, ['sudo configure-repo', 'sudo pacman -Syy'])
