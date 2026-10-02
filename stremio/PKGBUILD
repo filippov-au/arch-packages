@@ -3,15 +3,15 @@
 # This recipe builds the current Linux shell, not the legacy Qt5 shell.
 
 pkgname=stremio-linux-shell
-pkgver=1.2.0
-pkgrel=2
+pkgver=1.2.1
+pkgrel=1
 pkgdesc='Stremio streaming application (native GTK4 Linux shell)'
 arch=('x86_64')
 url='https://github.com/Stremio/stremio-linux-shell'
 license=('GPL-3.0-only')
 depends=('glibc' 'gcc-libs' 'gtk4>=4.22' 'libadwaita>=1.9' 'webkitgtk-6.0>=2.52'
          'libepoxy' 'mpv' 'nodejs' 'hicolor-icon-theme')
-makedepends=('rust' 'gettext' 'pkgconf')
+makedepends=('rust' 'gettext' 'pkgconf' 'git')
 optdepends=('xdg-desktop-portal: desktop integration'
             'gst-plugins-good: additional WebKit media codecs'
             'gst-libav: additional WebKit media codecs')
@@ -21,7 +21,7 @@ options=('!debug')
 source=("${pkgname}-${pkgver}.tar.gz::${url}/archive/refs/tags/v${pkgver}.tar.gz"
         'stremio.sh'
         '0001-use-gtk-idle-inhibition.patch')
-sha256sums=('aff0e1486aabccb25d4165792b3ce6dcb741bc4b50af4601f66ac3d41fb70670'
+sha256sums=('308d089b6712fc7e9d75b5792bc6091aabffd86befdf1083d3283b652476a72e'
             '6f2f3b8b0b8aedc0a88caf47169e291b2ac8ff9b6ddc49335e3323cc37637c76'
             'a26589892d4dff6a5caf5d8f3e6ceca89beb400cb4585c10452fbe156a1a4b6e')
 
