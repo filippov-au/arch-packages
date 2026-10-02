@@ -1,0 +1,413 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -31,6 +31,7 @@
+ serde_json = "1.0.151"
+ itertools = "0.15.0"
+ libmpv2 = { version = "5.0.3", git = "https://github.com/Stremio/libmpv2-rs" }
++libmpv2-sys = { version = "4.0.1", git = "https://github.com/Stremio/libmpv2-rs" }
+ image = "0.25.10"
+ chrono = "0.4.45"
+ anyhow = "1.0.104"
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -2620,6 +2620,7 @@
+  "libc",
+  "libloading 0.9.0",
+  "libmpv2",
++ "libmpv2-sys",
+  "mpris-server",
+  "serde",
+  "serde_json",
+--- a/src/app/video/imp.rs
++++ b/src/app/video/imp.rs
+@@ -1,6 +1,6 @@
+ use gdk_wayland::{WaylandDisplay, wayland_client::Proxy};
+ use gtk::{
+-    gdk::GLContext,
++    gdk::{GLContext, Toplevel, ToplevelState},
+     glib::{self, Propagation, Properties, Variant, clone, subclass::Signal},
+     prelude::*,
+     subclass::prelude::*,
+@@ -9,16 +9,12 @@
+     Format, Mpv, SetData,
+     events::{Event, PropertyData},
+     mpv_end_file_reason,
+-    render::{OpenGLInitParams, RenderContext, RenderParam, RenderParamApiType},
+ };
+-use std::{cell::RefCell, env, os::raw::c_void, sync::OnceLock};
++use std::{cell::RefCell, env, os::raw::c_void, sync::OnceLock, time::Duration};
+ use tracing::error;
+ 
+ use crate::spawn_local;
+-
+-fn get_proc_address(_context: &GLContext, name: &str) -> *mut c_void {
+-    epoxy::get_proc_addr(name) as _
+-}
++use super::{mpv_async, renderer::Renderer};
+ 
+ enum EventCallback {
+     Render,
+@@ -29,7 +25,8 @@
+ #[properties(wrapper_type = super::Video)]
+ pub struct Video {
+     mpv: RefCell<Mpv>,
+-    render_context: RefCell<Option<RenderContext>>,
++    render_context: RefCell<Option<Renderer>>,
++    render_fallback: RefCell<Option<glib::SourceId>>,
+ }
+ 
+ impl Default for Video {
+@@ -59,6 +56,7 @@
+         Self {
+             mpv: RefCell::new(mpv),
+             render_context: Default::default(),
++            render_fallback: Default::default(),
+         }
+     }
+ }
+@@ -80,7 +78,7 @@
+     }
+ 
+     pub fn send_command(&self, name: &str, args: &[&str]) {
+-        if let Err(e) = self.mpv.borrow().command(name, args) {
++        if let Err(e) = mpv_async::command(&self.mpv.borrow(), name, args) {
+             error!("Failed to send command {name}: {e}");
+         }
+     }
+@@ -92,8 +90,68 @@
+     }
+ 
+     pub fn set_property<T: SetData>(&self, name: &str, value: T) {
+-        if let Err(e) = self.mpv.borrow().set_property(name, value) {
++        if let Err(e) = mpv_async::set_property(&self.mpv.borrow(), name, value) {
+             error!("Failed to set property {name}: {e}");
++        }
++    }
++
++    fn cancel_render_fallback(&self) {
++        if let Some(source) = self.render_fallback.borrow_mut().take() {
++            source.remove();
++        }
++    }
++
++    fn skip_frame(&self) {
++        let object = self.obj();
++        object.make_current();
++        if object.error().is_some() {
++            return;
++        }
++        if let Some(renderer) = self.render_context.borrow().as_ref()
++            && let Err(e) = renderer.render(0, 0, 0, true)
++        {
++            error!("Failed to skip hidden frame: {e}");
++        }
++    }
++
++    fn request_render(&self) {
++        let object = self.obj();
++        object.make_current();
++        if object.error().is_some() {
++            return;
++        }
++        if let Some(renderer) = self.render_context.borrow().as_ref() {
++            renderer.update();
++        } else {
++            return;
++        }
++
++        let suspended = object.native()
++            .and_then(|native| native.surface())
++            .and_then(|surface| surface.downcast::<Toplevel>().ok())
++            .is_some_and(|surface| surface.state().intersects(
++                ToplevelState::SUSPENDED | ToplevelState::MINIMIZED,
++            ));
++        if suspended || !object.is_mapped() {
++            self.cancel_render_fallback();
++            self.skip_frame();
++            return;
++        }
++
++        object.queue_render();
++        // Some compositors stop frame callbacks without reporting SUSPENDED.
++        // A one-shot fallback acknowledges the frame before libmpv's timeout.
++        // It exists only while a requested frame is waiting for GTK to draw.
++        if self.render_fallback.borrow().is_none() {
++            let source = glib::timeout_add_local_once(Duration::from_millis(100), clone!(
++                #[weak(rename_to = video)]
++                self,
++                move || {
++                    video.render_fallback.borrow_mut().take();
++                    video.skip_frame();
++                }
++            ));
++            *self.render_fallback.borrow_mut() = Some(source);
+         }
+     }
+ }
+@@ -133,7 +191,7 @@
+             return;
+         }
+ 
+-        if let Some(context) = object.context() {
++        if object.context().is_some() {
+             let mut mpv = self.mpv.borrow_mut();
+             let (sender, receiver) = flume::unbounded::<EventCallback>();
+ 
+@@ -146,7 +204,7 @@
+                     while let Ok(event) = receiver.recv_async().await {
+                         match event {
+                             EventCallback::Render => {
+-                                object.queue_render();
++                                video.request_render();
+                             }
+                             EventCallback::Events => {
+                                 video.on_event(|event| match event {
+@@ -191,25 +249,16 @@
+                 wakeup_sender.send(EventCallback::Events).ok();
+             });
+ 
+-            let mut render_params = vec![
+-                RenderParam::ApiType(RenderParamApiType::OpenGl),
+-                RenderParam::InitParams(OpenGLInitParams {
+-                    get_proc_address,
+-                    ctx: context,
+-                }),
+-            ];
+-
+             let display = object.display();
+-            if let Ok(display) = display.downcast::<WaylandDisplay>()
++            let wayland_display = if let Ok(display) = display.downcast::<WaylandDisplay>()
+                 && let Some(display) = display.wl_display()
+             {
+-                render_params.push(RenderParam::WaylandDisplay(
+-                    display.id().as_ptr() as *const c_void
+-                ));
+-            }
+-
+-            let mpv_handle = unsafe { mpv.ctx.as_mut() };
+-            let mut render_context = RenderContext::new(mpv_handle, render_params)
++                Some(display.id().as_ptr() as *mut c_void)
++            } else {
++                None
++            };
++
++            let mut render_context = Renderer::new(&mpv, wayland_display)
+                 .expect("Failed to create render context");
+ 
+             let render_sender = sender.clone();
+@@ -222,6 +271,7 @@
+     }
+ 
+     fn unrealize(&self) {
++        self.cancel_render_fallback();
+         self.obj().make_current();
+         if let Some(render_context) = self.render_context.borrow_mut().take() {
+             drop(render_context);
+@@ -233,6 +283,7 @@
+ 
+ impl GLAreaImpl for Video {
+     fn render(&self, _context: &GLContext) -> Propagation {
++        self.cancel_render_fallback();
+         let object = self.obj();
+ 
+         let mut fbo = 0;
+@@ -246,7 +297,7 @@
+ 
+         if let Some(ref render_context) = *self.render_context.borrow() {
+             render_context
+-                .render::<GLContext>(fbo, width, height, true)
++                .render(fbo, width, height, false)
+                 .expect("Failed to render");
+         }
+ 
+--- /dev/null
++++ b/src/app/video/mpv_async.rs
+@@ -0,0 +1,89 @@
++//! Nonblocking libmpv calls for the GTK/render thread.
++use libmpv2::{Error, Format, Mpv, Result, SetData, mpv_format};
++use std::{ffi::CString, ptr};
++
++fn check(status: i32) -> Result<()> {
++    if status < 0 { Err(Error::Raw(status)) } else { Ok(()) }
++}
++
++pub fn command(mpv: &Mpv, name: &str, args: &[&str]) -> Result<()> {
++    let strings = std::iter::once(name)
++        .chain(args.iter().copied())
++        .map(CString::new)
++        .collect::<std::result::Result<Vec<_>, _>>()?;
++    let mut pointers: Vec<_> = strings.iter().map(|s| s.as_ptr()).collect();
++    pointers.push(ptr::null());
++    // libmpv copies the arguments before returning. Completion/errors arrive
++    // through the existing mpv event receiver, without blocking GTK drawing.
++    check(unsafe {
++        libmpv2_sys::mpv_command_async(mpv.ctx.as_ptr(), 0, pointers.as_mut_ptr())
++    })
++}
++
++pub fn set_property<T: SetData>(mpv: &Mpv, name: &str, value: T) -> Result<()> {
++    let name = CString::new(name)?;
++    let format = match T::get_format() {
++        Format::String => mpv_format::String,
++        Format::Flag => mpv_format::Flag,
++        Format::Int64 => mpv_format::Int64,
++        Format::Double => mpv_format::Double,
++        Format::Node => mpv_format::Node,
++    };
++    value.call_as_c_void(|data| {
++        // libmpv copies the value, including string data, during this call.
++        check(unsafe {
++            libmpv2_sys::mpv_set_property_async(mpv.ctx.as_ptr(), 0, name.as_ptr(), format, data)
++        })
++    })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use libmpv2::events::Event;
++
++    fn player() -> Mpv {
++        Mpv::with_initializer(|init| {
++            init.set_property("vo", "null")?;
++            init.set_property("ao", "null")?;
++            Ok(())
++        }).unwrap()
++    }
++
++    #[test]
++    fn queued_string_property_outlives_its_argument() {
++        let mpv = player();
++        set_property(&mpv, "force-media-title", String::from("queued title")).unwrap();
++        for _ in 0..10 {
++            match mpv.wait_event(0.5) {
++                Some(Ok(Event::SetPropertyReply(0))) => {
++                    assert_eq!(mpv.get_property::<String>("force-media-title").unwrap(), "queued title");
++                    return;
++                }
++                Some(Err(e)) => panic!("Async property failed: {e}"),
++                _ => {}
++            }
++        }
++        panic!("No async property completion");
++    }
++
++    #[test]
++    fn queued_command_outlives_its_arguments() {
++        let mpv = player();
++        {
++            let argument = String::from("17");
++            command(&mpv, "set", &["volume", &argument]).unwrap();
++        }
++        for _ in 0..10 {
++            match mpv.wait_event(0.5) {
++                Some(Ok(Event::CommandReply(0))) => {
++                    assert_eq!(mpv.get_property::<f64>("volume").unwrap(), 17.0);
++                    return;
++                }
++                Some(Err(e)) => panic!("Async command failed: {e}"),
++                _ => {}
++            }
++        }
++        panic!("No async command completion");
++    }
++}
+--- /dev/null
++++ b/src/app/video/renderer.rs
+@@ -0,0 +1,96 @@
++//! Stack-allocated render parameters, including skipped hidden-window frames.
++use libmpv2::{Error, Mpv, Result};
++use libmpv2_sys as ffi;
++use std::{ffi::{CStr, c_void}, ptr::{self, NonNull}};
++
++type UpdateCallback = Box<dyn Fn() + Send>;
++
++pub struct Renderer {
++    context: NonNull<ffi::mpv_render_context>,
++    // Double boxing gives the C callback a stable, thin pointer.
++    callback: Option<Box<UpdateCallback>>,
++}
++
++unsafe extern "C" fn get_proc_address(_: *mut c_void, name: *const std::ffi::c_char) -> *mut c_void {
++    let Ok(name) = (unsafe { CStr::from_ptr(name) }).to_str() else {
++        return ptr::null_mut();
++    };
++    epoxy::get_proc_addr(name) as _
++}
++
++unsafe extern "C" fn update_callback(data: *mut c_void) {
++    let callback = unsafe { &*(data as *const UpdateCallback) };
++    callback();
++}
++
++fn check(status: i32) -> Result<()> {
++    if status < 0 { Err(Error::Raw(status)) } else { Ok(()) }
++}
++
++fn param(type_: u32, data: *mut c_void) -> ffi::mpv_render_param {
++    ffi::mpv_render_param { type_, data }
++}
++
++impl Renderer {
++    pub fn new(mpv: &Mpv, wayland_display: Option<*mut c_void>) -> Result<Self> {
++        let mut init = ffi::mpv_opengl_init_params {
++            get_proc_address: Some(get_proc_address),
++            get_proc_address_ctx: ptr::null_mut(),
++        };
++        let mut params = vec![
++            param(ffi::mpv_render_param_type_MPV_RENDER_PARAM_API_TYPE, c"opengl".as_ptr() as _),
++            param(ffi::mpv_render_param_type_MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &mut init as *mut _ as _),
++        ];
++        if let Some(display) = wayland_display {
++            params.push(param(ffi::mpv_render_param_type_MPV_RENDER_PARAM_WL_DISPLAY, display));
++        }
++        params.push(param(ffi::mpv_render_param_type_MPV_RENDER_PARAM_INVALID, ptr::null_mut()));
++        let mut context = ptr::null_mut();
++        check(unsafe {
++            ffi::mpv_render_context_create(&mut context, mpv.ctx.as_ptr(), params.as_mut_ptr())
++        })?;
++        Ok(Self { context: NonNull::new(context).ok_or(Error::Null)?, callback: None })
++    }
++
++    pub fn set_update_callback(&mut self, callback: impl Fn() + Send + 'static) {
++        let mut callback: Box<UpdateCallback> = Box::new(Box::new(callback));
++        unsafe {
++            ffi::mpv_render_context_set_update_callback(
++                self.context.as_ptr(), Some(update_callback), &mut *callback as *mut _ as _,
++            );
++        }
++        self.callback = Some(callback);
++    }
++
++    pub fn update(&self) {
++        unsafe { ffi::mpv_render_context_update(self.context.as_ptr()); }
++    }
++
++    pub fn render(&self, fbo: i32, width: i32, height: i32, skip: bool) -> Result<()> {
++        let mut target = ffi::mpv_opengl_fbo { fbo, w: width, h: height, internal_format: 0 };
++        let mut flip: i32 = 1;
++        let mut skip: i32 = skip.into();
++        // The shell uses video-timing-offset=0. Do not wait on video timing
++        // inside the GTK main loop, including when acknowledging hidden frames.
++        let mut block: i32 = 0;
++        let mut params = [
++            param(ffi::mpv_render_param_type_MPV_RENDER_PARAM_OPENGL_FBO, &mut target as *mut _ as _),
++            param(ffi::mpv_render_param_type_MPV_RENDER_PARAM_FLIP_Y, &mut flip as *mut _ as _),
++            param(ffi::mpv_render_param_type_MPV_RENDER_PARAM_SKIP_RENDERING, &mut skip as *mut _ as _),
++            param(ffi::mpv_render_param_type_MPV_RENDER_PARAM_BLOCK_FOR_TARGET_TIME, &mut block as *mut _ as _),
++            param(ffi::mpv_render_param_type_MPV_RENDER_PARAM_INVALID, ptr::null_mut()),
++        ];
++        check(unsafe { ffi::mpv_render_context_render(self.context.as_ptr(), params.as_mut_ptr()) })
++    }
++}
++
++impl Drop for Renderer {
++    fn drop(&mut self) {
++        // Stop callbacks while their storage is still alive. The caller makes
++        // the GL context current before dropping this renderer.
++        unsafe {
++            ffi::mpv_render_context_set_update_callback(self.context.as_ptr(), None, ptr::null_mut());
++            ffi::mpv_render_context_free(self.context.as_ptr());
++        }
++    }
++}

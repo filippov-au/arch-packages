@@ -1,0 +1,30 @@
+--- a/src/app/video/mod.rs
++++ b/src/app/video/mod.rs
+@@ -1,5 +1,7 @@
+ mod config;
+ mod imp;
++mod mpv_async;
++mod renderer;
+ 
+ use adw::subclass::prelude::ObjectSubclassIsExt;
+ use gtk::glib::{self, Variant, closure_local, object::ObjectExt};
+@@ -107,7 +109,18 @@
+             }
+             name if STRING_PROPERTIES.contains(&name) => {
+                 if let Some(value) = value.as_str() {
+-                    widget.set_property(name, value);
++                    // Prefer direct decoding for the UI automatic policy. Keep
++                    // disabled/explicit choices and a copy-mode override intact.
++                    let override_value = std::env::var("STREMIO_HWDEC").ok();
++                    let value = if name == "hwdec" && value == "auto-copy" {
++                        match override_value.as_deref() {
++                            Some("auto-copy") => "auto-copy",
++                            _ => "auto",
++                        }
++                    } else {
++                        value
++                    };
++                    widget.set_property(name, value.to_owned());
+                 }
+             }
+             name => warn!("Failed to set property {name}: Unsupported"),

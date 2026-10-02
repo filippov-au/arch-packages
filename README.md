@@ -114,6 +114,37 @@ It provides and conflicts with the legacy AUR `stremio` Qt5 package, so pacman
 will ask to remove that package if it is installed. See the
 [AUR and upstream review](stremio/REVIEW.md) for packaging decisions.
 
+### Stremio playback patches
+
+This package carries three local patches in addition to upstream's 1.2.1 fix
+for excessive idle CPU usage:
+
+- **Native idle inhibition:** uses GTK's Wayland idle inhibitor during playback
+  when the desktop portal has no working Inhibit backend. Releases the inhibitor
+  when playback pauses or ends, or the window is unmapped.
+- **Rendering and workspace switching:** sends mpv commands and property writes
+  asynchronously so they cannot block GTK rendering. Acknowledges frames of
+  suspended/minimized windows without drawing them, with a one-shot fallback
+  for compositors that stop frame callbacks without reporting suspension.
+- **Direct hardware decoding by default:** changes the UI's automatic
+  `auto-copy` policy to mpv's `auto`, allowing GPU frames to stay on the GPU
+  when supported. Disabled hardware decoding and explicit decoder choices
+  remain unchanged.
+
+For compatibility testing, fully close Stremio and restore the upstream copying
+policy for one launch:
+
+```bash
+STREMIO_HWDEC=auto-copy stremio
+```
+
+In a manual Intel/Wayland test with 4K HEVC HDR video, the rendering patch removed
+the observed workspace-return stalls. With direct VA-API decoding, total Stremio
+CPU fell from approximately 82% to 19%, and whole-laptop battery power from
+10.6 W to 6.9 W. These measurements compare the combined patches with upstream
+1.2.1, on one machine and video; results depend on the driver, codec and desktop.
+See [patch details and validation](stremio/README.md).
+
 ## Update pull requests
 
 The **Check package updates** workflow runs daily and can also be started from
