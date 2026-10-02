@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check vendor releases; optionally open one update PR per package version."""
+"""Check vendor releases; keep only the latest update PR open per package."""
 import argparse
 import json
 import pathlib
@@ -20,6 +20,23 @@ def update(package, pr=False, repo=None):
     return update_vendor(package, state, pr, repo)
 
 
+def close_superseded_prs(package, latest, repo):
+    pulls = json.loads(run('gh', 'pr', 'list', '--repo', repo, '--base', 'master',
+                           '--state', 'open', '--limit', '1000',
+                           '--json', 'number,headRefName'))
+    prefix = f'updates/{package}/'
+    for pull in pulls:
+        branch = pull['headRefName']
+        if branch.startswith(prefix):
+            version = branch[len(prefix):]
+            try:
+                key = vendor.version_key(version)
+            except RuntimeError:
+                continue
+            if key < vendor.version_key(latest):
+                run('gh', 'pr', 'close', str(pull['number']), '--repo', repo)
+
+
 def update_vendor(package, config, pr=False, repo=None):
     if pr and run('git', 'status', '--porcelain').strip():
         raise RuntimeError('PR mode requires a clean checkout')
@@ -32,8 +49,10 @@ def update_vendor(package, config, pr=False, repo=None):
     branch = f'updates/{package}/{latest}'
     if pr:
         existing = json.loads(run('gh', 'pr', 'list', '--repo', repo, '--head', branch,
-                                  '--state', 'all', '--json', 'url'))
+                                  '--state', 'all', '--json', 'url,state'))
         if existing:
+            if any(pull['state'] == 'OPEN' for pull in existing):
+                close_superseded_prs(package, latest, repo)
             print(existing[0]['url'])
             return False
     changes = vendor.prepare(directory, config, latest, assets)
@@ -62,6 +81,7 @@ def update_vendor(package, config, pr=False, repo=None):
                             'Review dependencies and approve the package build checks before merging.\n')
             print(run('gh', 'pr', 'create', '--repo', repo, '--title', title,
                       '--body-file', str(body), '--head', branch).decode().strip())
+        close_superseded_prs(package, latest, repo)
     return True
 
 

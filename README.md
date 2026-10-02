@@ -149,7 +149,10 @@ See [patch details and validation](stremio/README.md).
 
 The **Check package updates** workflow runs daily and can also be started from
 GitHub's Actions tab. It checks each package independently and opens one PR per
-stable vendor version. Existing PRs for the same version are not duplicated.
+stable vendor version. After creating a new PR, it closes older update PRs for
+that package, keeping only the latest version open. It also cleans up older PRs
+when the latest version already has an open PR. Existing PRs for the same
+version are not duplicated, and manually closed PRs are not reopened.
 There is no automatic merge.
 
 Each package's `.upstream.json` identifies its official release feed and assets.

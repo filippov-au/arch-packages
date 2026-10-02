@@ -176,11 +176,13 @@ class VendorTests(unittest.TestCase):
         created = []
         def run(*args, **kwargs):
             if args[:3] == ('gh', 'pr', 'list'):
+                if '--head' not in args:
+                    return b'[]'
                 return json.dumps(created).encode()
             if args[:3] == ('gh', 'pr', 'create'):
                 body = pathlib.Path(args[args.index('--body-file') + 1]).read_text()
                 self.assertIn('vendor-published checksums', body)
-                created.append({'url': 'https://example.invalid/pull/1'})
+                created.append({'url': 'https://example.invalid/pull/1', 'state': 'OPEN'})
                 return b'https://example.invalid/pull/1'
             if args[:2] == ('git', 'push'):
                 return b''
@@ -191,6 +193,20 @@ class VendorTests(unittest.TestCase):
                 subprocess.run(['git', '-C', str(self.root), 'switch', '-q', original_branch], check=True)
                 self.assertFalse(update.update('proton_pass', pr=True, repo='example/packages'))
         self.assertEqual(len(created), 1)
+
+    def test_closes_only_older_update_prs_for_same_package(self):
+        pulls = [
+            {'number': 1, 'headRefName': 'updates/orca/1.4.9'},
+            {'number': 2, 'headRefName': 'updates/orca/1.4.218'},
+            {'number': 3, 'headRefName': 'updates/orca/1.4.219'},
+            {'number': 4, 'headRefName': 'updates/stremio/1.2.1'},
+            {'number': 5, 'headRefName': 'updates/orca/manual-fix'},
+        ]
+        with patch.object(update, 'run', return_value=json.dumps(pulls).encode()) as run:
+            update.close_superseded_prs('orca', '1.4.218', 'example/packages')
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(run.call_args.args,
+                         ('gh', 'pr', 'close', '1', '--repo', 'example/packages'))
 
 
 if __name__ == '__main__':
