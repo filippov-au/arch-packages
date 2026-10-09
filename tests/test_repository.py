@@ -91,19 +91,19 @@ class PublishTests(unittest.TestCase):
         self.assert_rejected_before_network('invalid repository database')
 
     def test_refuses_duplicate_manifest_filename_before_network_calls(self):
-        self.manifest['packages']['proton_pass'] = self.manifest['packages']['orca']
+        self.manifest['packages']['proton_mail'] = self.manifest['packages']['proton_pass']
         (self.output / 'manifest.json').write_text(json.dumps(self.manifest))
         self.assert_rejected_before_network('filename validation')
 
     def test_refuses_artifact_tampering_before_network_calls(self):
-        (self.output / self.manifest['packages']['orca']['filename']).write_bytes(b'changed')
+        (self.output / self.manifest['packages']['proton_pass']['filename']).write_bytes(b'changed')
         with patch.object(repository.subprocess, 'run') as command:
             with self.assertRaisesRegex(RuntimeError, 'checksum'):
                 repository.publish('example/packages', self.output)
         command.assert_not_called()
 
     def test_refuses_overwriting_existing_package_name(self):
-        release = {'assets': [{'name': self.manifest['packages']['orca']['filename'], 'digest': 'sha256:' + '0' * 64}]}
+        release = {'assets': [{'name': self.manifest['packages']['proton_pass']['filename'], 'digest': 'sha256:' + '0' * 64}]}
         with patch.object(repository.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, json.dumps(release))) as command:
             with self.assertRaisesRegex(RuntimeError, 'differs'):
                 repository.publish('example/packages', self.output)

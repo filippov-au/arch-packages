@@ -95,10 +95,9 @@ install_main() {
     case "$1" in
       --build-only) build_only=1 ;;
       -h|--help)
-        echo 'Usage: ./install.sh [--build-only] [orca proton_pass proton_mail proton_drive stremio]'
+        echo 'Usage: ./install.sh [--build-only] [proton_pass proton_mail proton_drive stremio]'
         echo 'Without package names, prompts for packages to install (--build-only builds all).'
         exit 0 ;;
-      orca|stably-orca|stably-orca-bin) selected+=(orca) ;;
       proton_pass|proton-pass-bin) selected+=(proton_pass) ;;
       proton_mail|proton-mail-bin) selected+=(proton_mail) ;;
       proton_drive|proton-drive-cli-bin) selected+=(proton_drive) ;;
@@ -113,7 +112,7 @@ install_main() {
       exit 2
     fi
     cd "$(dirname "${BASH_SOURCE[0]}")"
-    ((${#selected[@]})) || selected=(orca proton_pass proton_mail proton_drive stremio)
+    ((${#selected[@]})) || selected=(proton_pass proton_mail proton_drive stremio)
     for package in "${selected[@]}"; do
       bash scripts/build.sh "$package" "dist/$package"
     done
@@ -123,11 +122,10 @@ install_main() {
   if [[ ! -t 0 && -t 1 ]]; then exec </dev/tty; fi
   if ((${#selected[@]} == 0)); then
     printf '%s\n' 'Which packages would you like to install?' \
-      '  1) Orca ADE' \
-      '  2) Proton Pass' \
-      '  3) Proton Mail' \
-      '  4) Proton Drive CLI' \
-      '  5) Stremio'
+      '  1) Proton Pass' \
+      '  2) Proton Mail' \
+      '  3) Proton Drive CLI' \
+      '  4) Stremio'
     while true; do
       printf 'Enter numbers separated by spaces (e.g. 1 2), all, or q to cancel: '
       if ! IFS= read -r answer || [[ -z ${answer//[[:space:]]/} || $answer == q ]]; then
@@ -140,14 +138,13 @@ install_main() {
       valid=1
       for choice in "${choices[@]}"; do
         case "$choice" in
-          1) package=orca ;;
-          2) package=proton_pass ;;
-          3) package=proton_mail ;;
-          4) package=proton_drive ;;
-          5) package=stremio ;;
+          1) package=proton_pass ;;
+          2) package=proton_mail ;;
+          3) package=proton_drive ;;
+          4) package=stremio ;;
           all)
             if ((${#choices[@]} == 1)); then
-              selected=(orca proton_pass proton_mail proton_drive stremio)
+              selected=(proton_pass proton_mail proton_drive stremio)
               break
             fi
             valid=0; break ;;
@@ -158,11 +155,10 @@ install_main() {
         fi
       done
       if ((valid)); then break; fi
-      echo 'Invalid selection. Choose numbers from 1 to 5, all, or q.' >&2
+      echo 'Invalid selection. Choose numbers from 1 to 4, all, or q.' >&2
     done
   fi
   declare -A names=(
-    [orca]=stably-orca-bin
     [proton_pass]=proton-pass-bin
     [proton_mail]=proton-mail-bin
     [proton_drive]=proton-drive-cli-bin

@@ -14,14 +14,14 @@ changes or automatically downgrade packages.
 Run an update locally without creating a PR:
 
 ```bash
-python scripts/update.py orca
+python scripts/update.py proton_pass
 ```
 
 Or open a PR from a **clean checkout of the latest `master`** using the existing
 GitHub CLI login:
 
 ```bash
-python scripts/update.py orca --pr --repo filippov-au/arch-packages
+python scripts/update.py proton_pass --pr --repo filippov-au/arch-packages
 ```
 
 PR mode switches the checkout to its update branch. Use a separate checkout for
@@ -40,7 +40,7 @@ Local builds need Docker, Git, Python 3.11+, and `zstd`. The build runs as a gen
 unprivileged user in an Arch container and installs dependencies there.
 
 ```bash
-./install.sh --build-only orca
+./install.sh --build-only proton_pass
 python scripts/repository.py build --repo filippov-au/arch-packages
 ```
 
