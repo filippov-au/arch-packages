@@ -1,14 +1,17 @@
 # Local playback patches
 
-`1.2.1-3` includes a tested local fix for workspace-return stutter. Keep the
+`1.2.1-3` introduced a tested local fix for workspace-return stutter. Keep the
 upstream CPU idle fix and the existing native idle inhibitor.
 
 ## Rendering
 
 The GTK thread renders video and processes libmpv events. Synchronous commands
 and property writes can block it while libmpv waits for rendering. Use the
-asynchronous client APIs and handle their completion through the existing event
-receiver. See the [libmpv threading contract](https://github.com/mpv-player/mpv/blob/master/include/mpv/render.h).
+asynchronous client APIs and receive their replies on a separate mpv client
+handle sharing the same core. Since 1.2.2, upstream's player event loop reports
+any raw mpv error as a failed stream; a rejected property write or command
+reply there would end playback. Reply errors are logged only, matching the
+previous synchronous behavior. See the [libmpv threading contract](https://github.com/mpv-player/mpv/blob/master/include/mpv/render.h).
 
 When GDK reports a suspended/minimized surface, acknowledge new video frames
 with `MPV_RENDER_PARAM_SKIP_RENDERING` instead of drawing them. For compositors
