@@ -88,9 +88,10 @@ class VendorTests(unittest.TestCase):
             vendor.latest(config)
 
     def test_github_requires_stable_release_and_asset_digest(self):
-        _, config, _, _ = self.fixture('orca')
+        config = {'provider': 'github', 'url': 'https://api.github.com/repos/example/app/releases/latest',
+                  'assets': [{'name': 'app-linux.AppImage', 'source': 'source_x86_64'}]}
         data = {'tag_name': 'v1.2.3', 'draft': False, 'prerelease': False, 'assets': [{
-            'name': 'orca-linux.AppImage', 'browser_download_url': 'https://github.com/example',
+            'name': 'app-linux.AppImage', 'browser_download_url': 'https://github.com/example',
             'digest': 'sha256:' + HASHES['sha256']}]}
         with patch.object(vendor, 'get_json', return_value=data):
             self.assertEqual(vendor.latest(config)[0], '1.2.3')
@@ -196,14 +197,14 @@ class VendorTests(unittest.TestCase):
 
     def test_closes_only_older_update_prs_for_same_package(self):
         pulls = [
-            {'number': 1, 'headRefName': 'updates/orca/1.4.9'},
-            {'number': 2, 'headRefName': 'updates/orca/1.4.218'},
-            {'number': 3, 'headRefName': 'updates/orca/1.4.219'},
+            {'number': 1, 'headRefName': 'updates/proton_pass/1.4.9'},
+            {'number': 2, 'headRefName': 'updates/proton_pass/1.4.218'},
+            {'number': 3, 'headRefName': 'updates/proton_pass/1.4.219'},
             {'number': 4, 'headRefName': 'updates/stremio/1.2.1'},
-            {'number': 5, 'headRefName': 'updates/orca/manual-fix'},
+            {'number': 5, 'headRefName': 'updates/proton_pass/manual-fix'},
         ]
         with patch.object(update, 'run', return_value=json.dumps(pulls).encode()) as run:
-            update.close_superseded_prs('orca', '1.4.218', 'example/packages')
+            update.close_superseded_prs('proton_pass', '1.4.218', 'example/packages')
         self.assertEqual(run.call_count, 2)
         self.assertEqual(run.call_args.args,
                          ('gh', 'pr', 'close', '1', '--repo', 'example/packages'))

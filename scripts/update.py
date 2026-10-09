@@ -8,7 +8,7 @@ import tempfile
 import vendor
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-PACKAGES = ('orca', 'proton_pass', 'proton_mail', 'proton_drive', 'stremio')
+PACKAGES = ('proton_pass', 'proton_mail', 'proton_drive', 'stremio')
 
 
 def run(*args, cwd=None, **kwargs):

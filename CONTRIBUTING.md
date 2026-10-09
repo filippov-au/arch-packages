@@ -23,7 +23,7 @@ the upstream release, report them to the application project linked in its `PKGB
 To prepare a verified update from the latest stable vendor release locally:
 
 ```bash
-python scripts/update.py orca
+python scripts/update.py proton_pass
 ```
 
 ## Validation
@@ -33,14 +33,14 @@ Run the lightweight checks with Python 3.11+ and Git:
 ```bash
 python -m unittest discover -s tests -v
 python scripts/audit.py --history
-for file in install.sh scripts/*.sh orca/*.sh proton_mail/*.sh; do bash -n "$file"; done
+for file in install.sh scripts/*.sh proton_mail/*.sh; do bash -n "$file"; done
 git diff --check
 ```
 
 For package changes, also build the affected package with Docker and `zstd` installed:
 
 ```bash
-./install.sh --build-only orca
+./install.sh --build-only proton_pass
 ```
 
 This builds and audits the package without installing it on your machine. Include

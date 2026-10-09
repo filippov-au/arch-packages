@@ -1,11 +1,10 @@
 # Arch packages
 
-Reviewed Arch Linux packages for Orca ADE, Proton Pass, Proton Mail, Proton Drive CLI, and Stremio.
+Reviewed Arch Linux packages for Proton Pass, Proton Mail, Proton Drive CLI, and Stremio.
 
 This is a community-maintained package repository. The hosted packages target
-**x86_64 Arch Linux and Omarchy**. Orca's customized launcher requires a Wayland
-session. Packages are currently **unsigned**; see the trust details below before
-installing.
+**x86_64 Arch Linux and Omarchy**. Packages are currently **unsigned**; see the
+trust details below before installing.
 
 - **Source:** https://github.com/filippov-au/arch-packages
 - **Hosted pacman repository:** [GitHub Releases](https://github.com/filippov-au/arch-packages/releases/tag/packages)
@@ -38,7 +37,7 @@ cancel.
 Or select packages directly without the selection prompt:
 
 ```bash
-./install.sh orca proton_pass
+./install.sh proton_pass stremio
 ```
 
 The installer backs up `/etc/pacman.conf`, puts this repository before Arch's
@@ -53,8 +52,8 @@ Detection uses `/etc/os-release` and the `omarchy` command, including older Omar
 installations that identify as Arch. Failed updates stop the installer before the
 package installation step. Omarchy's `-y` runs its update without additional
 confirmation prompts; the final package installation still asks for confirmation.
-Explicit targets reinstall an equal version too, so an existing AUR Orca
-installation gets the customized launcher.
+Explicit targets reinstall an equal version too, so an existing AUR
+installation of the same package is replaced by this repository's build.
 
 For manual configuration, add this **above `[core]` and `[extra]`**, outside the
 `[options]` section:
@@ -65,17 +64,17 @@ SigLevel = Optional TrustAll
 Server = https://github.com/filippov-au/arch-packages/releases/download/packages
 ```
 
-On **Omarchy**, update through its normal entrypoint, then install Orca:
+On **Omarchy**, update through its normal entrypoint, then install a package:
 
 ```bash
 omarchy update
-sudo pacman -S arch-packages/stably-orca-bin
+sudo pacman -S arch-packages/proton-pass-bin
 ```
 
-On **Arch Linux**, update and install Orca together:
+On **Arch Linux**, update and install a package together:
 
 ```bash
-sudo pacman -Syu arch-packages/stably-orca-bin
+sudo pacman -Syu arch-packages/proton-pass-bin
 ```
 
 Downloads are public and need no account or token. Packages currently have no
@@ -93,7 +92,6 @@ Do not use `-Suu` to force downgrades when your installed version is newer.
 
 | Directory | Package name | Release source |
 |---|---|---|
-| `orca` | `stably-orca-bin` | Official GitHub releases |
 | `proton_pass` | `proton-pass-bin` | Proton's Linux release feed |
 | `proton_mail` | `proton-mail-bin` | Proton's Linux release feed |
 | `proton_drive` | `proton-drive-cli-bin` | Proton's CLI release feed |
@@ -103,9 +101,7 @@ See each `PKGBUILD` for its version, dependencies, checksums, and upstream licen
 The published binary repository targets **x86_64** machines, including packages
 marked `any`. It does not currently publish a separate ARM repository.
 
-Orca uses the extracted official AppImage, sets `APPDIR`, disables Vulkan, and
-forces native Wayland. Its command is `stably-orca`; GNOME's `orca` package is an
-unrelated screen reader. Proton Drive is the official CLI, not a desktop client.
+Proton Drive is the official CLI, not a desktop client.
 
 Stremio builds the current GTK4 Linux shell from source. Its package version is
 the Linux shell version, separate from the hosted Stremio web
@@ -162,7 +158,7 @@ for AUR updates or import third-party packaging changes. Recipes, dependencies,
 and launchers are maintained here; existing attribution and license notices remain.
 
 The updater selects the highest stable Proton version or the latest stable
-GitHub release for Orca and Stremio, and never automatically downgrades. Stremio's
+GitHub release for Stremio, and never automatically downgrades. Stremio's
 GitHub source archives have no independently published checksum: the updater
 downloads the reviewed versioned HTTPS URL and pins its SHA-256 for makepkg.
 Stremio's Rust dependencies are locked by upstream's Cargo.lock. The updater
