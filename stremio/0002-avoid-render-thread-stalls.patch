@@ -28,8 +28,8 @@
      glib::{self, Propagation, Properties, Variant, clone, subclass::Signal},
      prelude::*,
      subclass::prelude::*,
-@@ -9,16 +9,12 @@
-     Format, Mpv, SetData,
+@@ -9,27 +9,28 @@
+     Error, Format, Mpv, SetData,
      events::{Event, PropertyData},
      mpv_end_file_reason,
 -    render::{OpenGLInitParams, RenderContext, RenderParam, RenderParamApiType},
@@ -47,42 +47,71 @@
  
  enum EventCallback {
      Render,
-@@ -29,7 +25,8 @@
+     Events,
++    Requests,
+ }
+ 
+ #[derive(Properties)]
  #[properties(wrapper_type = super::Video)]
  pub struct Video {
      mpv: RefCell<Mpv>,
 -    render_context: RefCell<Option<RenderContext>>,
++    // Async requests use their own client so that failed replies stay out of
++    // the player event loop, which treats raw mpv errors as playback failures.
++    requests: RefCell<Mpv>,
 +    render_context: RefCell<Option<Renderer>>,
 +    render_fallback: RefCell<Option<glib::SourceId>>,
  }
  
  impl Default for Video {
-@@ -59,6 +56,7 @@
+@@ -56,9 +57,14 @@
+ 
+         mpv.disable_deprecated_events().ok();
+ 
++        let requests = mpv.create_client(None).expect("Failed to create mpv client");
++        requests.disable_deprecated_events().ok();
++
          Self {
              mpv: RefCell::new(mpv),
++            requests: RefCell::new(requests),
              render_context: Default::default(),
 +            render_fallback: Default::default(),
          }
      }
  }
-@@ -80,7 +78,7 @@
+@@ -78,6 +84,14 @@
+         }
+     }
+ 
++    fn on_request_replies(&self) {
++        while let Some(result) = self.requests.borrow().wait_event(0.0) {
++            if let Err(e) = result {
++                error!("Failed to complete mpv request: {e}");
++            }
++        }
++    }
++
+     fn unobserve_properties(&self) {
+         if let Err(e) = self.mpv.borrow().unobserve_property(0) {
+             error!("Failed to unobserve properties: {e}");
+@@ -85,7 +99,7 @@
      }
  
      pub fn send_command(&self, name: &str, args: &[&str]) {
 -        if let Err(e) = self.mpv.borrow().command(name, args) {
-+        if let Err(e) = mpv_async::command(&self.mpv.borrow(), name, args) {
++        if let Err(e) = mpv_async::command(&self.requests.borrow(), name, args) {
              error!("Failed to send command {name}: {e}");
          }
      }
-@@ -92,8 +90,68 @@
+@@ -97,10 +111,70 @@
      }
  
      pub fn set_property<T: SetData>(&self, name: &str, value: T) {
 -        if let Err(e) = self.mpv.borrow().set_property(name, value) {
-+        if let Err(e) = mpv_async::set_property(&self.mpv.borrow(), name, value) {
++        if let Err(e) = mpv_async::set_property(&self.requests.borrow(), name, value) {
              error!("Failed to set property {name}: {e}");
-+        }
-+    }
+         }
+     }
 +
 +    fn cancel_render_fallback(&self) {
 +        if let Some(source) = self.render_fallback.borrow_mut().take() {
@@ -141,10 +170,12 @@
 +                }
 +            ));
 +            *self.render_fallback.borrow_mut() = Some(source);
-         }
-     }
++        }
++    }
  }
-@@ -133,7 +191,7 @@
+ 
+ #[glib::object_subclass]
+@@ -138,7 +212,7 @@
              return;
          }
  
@@ -153,16 +184,19 @@
              let mut mpv = self.mpv.borrow_mut();
              let (sender, receiver) = flume::unbounded::<EventCallback>();
  
-@@ -146,7 +204,7 @@
+@@ -151,7 +225,10 @@
                      while let Ok(event) = receiver.recv_async().await {
                          match event {
                              EventCallback::Render => {
 -                                object.queue_render();
 +                                video.request_render();
++                            }
++                            EventCallback::Requests => {
++                                video.on_request_replies();
                              }
                              EventCallback::Events => {
                                  video.on_event(|event| match event {
-@@ -191,25 +249,16 @@
+@@ -196,25 +273,23 @@
                  wakeup_sender.send(EventCallback::Events).ok();
              });
  
@@ -173,7 +207,13 @@
 -                    ctx: context,
 -                }),
 -            ];
--
++            let requests_sender = sender.clone();
++            self.requests.borrow_mut().set_wakeup_callback(move || {
++                requests_sender.send(EventCallback::Requests).ok();
++            });
++            // Drain replies to requests sent before the widget was realized.
++            sender.send(EventCallback::Requests).ok();
+ 
              let display = object.display();
 -            if let Ok(display) = display.downcast::<WaylandDisplay>()
 +            let wayland_display = if let Ok(display) = display.downcast::<WaylandDisplay>()
@@ -183,19 +223,18 @@
 -                    display.id().as_ptr() as *const c_void
 -                ));
 -            }
--
--            let mpv_handle = unsafe { mpv.ctx.as_mut() };
--            let mut render_context = RenderContext::new(mpv_handle, render_params)
 +                Some(display.id().as_ptr() as *mut c_void)
 +            } else {
 +                None
 +            };
-+
+ 
+-            let mpv_handle = unsafe { mpv.ctx.as_mut() };
+-            let mut render_context = RenderContext::new(mpv_handle, render_params)
 +            let mut render_context = Renderer::new(&mpv, wayland_display)
                  .expect("Failed to create render context");
  
              let render_sender = sender.clone();
-@@ -222,6 +271,7 @@
+@@ -227,6 +302,7 @@
      }
  
      fn unrealize(&self) {
@@ -203,7 +242,7 @@
          self.obj().make_current();
          if let Some(render_context) = self.render_context.borrow_mut().take() {
              drop(render_context);
-@@ -233,6 +283,7 @@
+@@ -238,6 +314,7 @@
  
  impl GLAreaImpl for Video {
      fn render(&self, _context: &GLContext) -> Propagation {
@@ -211,7 +250,7 @@
          let object = self.obj();
  
          let mut fbo = 0;
-@@ -246,7 +297,7 @@
+@@ -251,7 +328,7 @@
  
          if let Some(ref render_context) = *self.render_context.borrow() {
              render_context
@@ -239,7 +278,7 @@
 +    let mut pointers: Vec<_> = strings.iter().map(|s| s.as_ptr()).collect();
 +    pointers.push(ptr::null());
 +    // libmpv copies the arguments before returning. Completion/errors arrive
-+    // through the existing mpv event receiver, without blocking GTK drawing.
++    // through the event queue of the given client, without blocking GTK drawing.
 +    check(unsafe {
 +        libmpv2_sys::mpv_command_async(mpv.ctx.as_ptr(), 0, pointers.as_mut_ptr())
 +    })
