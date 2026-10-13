@@ -96,10 +96,11 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(commands, ['sudo configure-repo', 'sudo pacman -Syy', 'omarchy update -y',
                                     'sudo pacman -S arch-packages/proton-pass-bin arch-packages/proton-mail-bin '
-                                    'arch-packages/proton-drive-cli-bin arch-packages/stremio-linux-shell'])
+                                    'arch-packages/proton-drive-cli-bin arch-packages/stremio-linux-shell '
+                                    'arch-packages/grok-bot'])
 
     def test_invalid_selection_reprompts_without_installing_partial_selection(self):
-        result, commands = self.run_installer('pacman', args=(), input_text='1 5\n2\n')
+        result, commands = self.run_installer('pacman', args=(), input_text='1 6\n2\n')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('Invalid selection', result.stderr)
         self.assertEqual(commands, ['sudo configure-repo',
@@ -112,6 +113,14 @@ class InstallerTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(commands, ['sudo configure-repo',
                                             'sudo pacman -Syyu arch-packages/stremio-linux-shell'])
+
+    def test_grok_bot_name_alias_and_menu_selection(self):
+        for args, input_text in ((('grok_bot',), ''), (('grok-bot',), ''), ((), '5\n')):
+            with self.subTest(args=args):
+                result, commands = self.run_installer('pacman', args=args, input_text=input_text)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(commands, ['sudo configure-repo',
+                                            'sudo pacman -Syyu arch-packages/grok-bot'])
 
     def test_cancel_or_eof_does_not_modify_system(self):
         for input_text in ('q\n', '\n', '   \n', '', '1 invalid\n'):

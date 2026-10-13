@@ -39,7 +39,7 @@ class VendorTests(unittest.TestCase):
             if config['provider'] == 'github-source':
                 assets.append(dict(spec, url=url, kind='source-archive'))
             else:
-                algorithm = 'sha256' if config['provider'] == 'github' else 'sha512'
+                algorithm = 'sha256' if config['provider'] in ('github', 'cursor') else 'sha512'
                 assets.append(dict(spec, url=url, algorithm=algorithm, digest=HASHES[algorithm]))
         return directory, config, version, assets
 
@@ -102,6 +102,28 @@ class VendorTests(unittest.TestCase):
             data['assets'][0]['digest'] = None
             with self.assertRaisesRegex(RuntimeError, 'digest'):
                 vendor.latest(config)
+
+    def test_cursor_feed_updates_pinned_release_commit(self):
+        directory, config, _, _ = self.fixture('grok_bot')
+        commit = 'a' * 40
+        data = {'version': '9.10.0', 'sha256hash': HASHES['sha256'],
+                'url': f'https://downloads.cursor.com/grokbot/stable/{commit}/linux/x64/Grok_Bot_9.10.0.AppImage'}
+        with patch.object(vendor, 'get_json', return_value=data):
+            version, assets = vendor.latest(config)
+        self.assertEqual(version, '9.10.0')
+        self.assertEqual(assets[0]['variables'], {'_commit': commit})
+        with patch.object(vendor, 'download_hashes', return_value=HASHES):
+            changes = vendor.prepare(directory, config, version, assets)
+        recipe = changes['PKGBUILD'].decode()
+        self.assertEqual(vendor.scalar(recipe, '_commit'), commit)
+        self.assertEqual(vendor.metadata_values(changes['.SRCINFO'].decode(), 'source')[0],
+                         'Grok_Bot_9.10.0.AppImage::' + data['url'])
+        for field, value in (('url', 'https://example.invalid/Grok_Bot_9.10.0.AppImage'),
+                             ('url', data['url'].replace('9.10.0.AppImage', '9.9.0.AppImage')),
+                             ('sha256hash', None)):
+            with self.subTest(field=field), patch.object(vendor, 'get_json', return_value=dict(data, **{field: value})):
+                with self.assertRaises(RuntimeError):
+                    vendor.latest(config)
 
     def test_changed_vendor_url_rejected_before_download(self):
         directory, config, version, assets = self.fixture()

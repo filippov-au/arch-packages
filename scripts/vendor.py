@@ -50,6 +50,20 @@ def latest(config):
                 raise RuntimeError('GitHub asset has no verifiable SHA-256 digest')
             assets.append(dict(spec, url=asset['browser_download_url'], algorithm='sha256', digest=digest[7:]))
         return version, assets
+    if config['provider'] == 'cursor':
+        # xAI publishes Grok Bot through Cursor's update service. Each build is
+        # stored under its release commit, which the recipe pins as _commit.
+        version = data.get('version')
+        version_key(version)
+        match = re.fullmatch(r'https://downloads\.cursor\.com/grokbot/stable/([0-9a-f]{40})/linux/x64/'
+                             r'Grok_Bot_' + re.escape(version) + r'\.AppImage', data.get('url') or '')
+        if not match:
+            raise RuntimeError('Unexpected Grok Bot download URL')
+        digest = data.get('sha256hash') or ''
+        if not re.fullmatch(r'[0-9a-f]{64}', digest):
+            raise RuntimeError('Grok Bot asset has no verifiable SHA-256 checksum')
+        return version, [dict(spec, url=data['url'], algorithm='sha256', digest=digest,
+                              variables={'_commit': match[1]}) for spec in config['assets']]
     if config['provider'] != 'proton':
         raise RuntimeError('Unknown vendor provider')
     stable = [release for release in data['Releases'] if release['CategoryName'] == 'Stable']
@@ -120,9 +134,23 @@ def prepare(directory, config, new_version, assets):
         raise RuntimeError('.SRCINFO version does not match recipe')
     variables = {key: scalar(recipe, key) for key in ('pkgname', 'pkgver', 'url')}
     variables['_name'] = variables['pkgname'].removesuffix('-bin')
+    # Literal recipe pins such as _commit may appear in source URLs.
+    for key in re.findall(r'^(_\w+)=', recipe, re.M):
+        try:
+            value = scalar(recipe, key)
+        except RuntimeError:
+            continue
+        if key not in variables and '$' not in value and '`' not in value:
+            variables[key] = value
+    # Feed-provided values may only replace variables the recipe already pins.
+    updates = {'pkgver': new_version}
+    for asset in assets:
+        for key, value in asset.get('variables', {}).items():
+            if key not in variables or not re.fullmatch(r'[\w.-]+', value) or updates.get(key, value) != value:
+                raise RuntimeError(f'Unsupported vendor variable: {key}')
+            updates[key] = value
 
-    def expand(value, version):
-        values = dict(variables, pkgver=version)
+    def expand(value, values):
         def substitute(match):
             key = match[1] or match[2]
             if key not in values:
@@ -136,9 +164,9 @@ def prepare(directory, config, new_version, assets):
     for asset in assets:
         source_key = asset['source']
         _, sources = array(recipe, source_key)
-        if not sources or metadata_values(metadata, source_key) != [expand(item, old_version) for item in sources]:
+        if not sources or metadata_values(metadata, source_key) != [expand(item, variables) for item in sources]:
             raise RuntimeError(f'.SRCINFO {source_key} does not match recipe')
-        new_sources = [expand(item, new_version) for item in sources]
+        new_sources = [expand(item, dict(variables, **updates)) for item in sources]
         # Feed data cannot redirect the updater to a different host or asset.
         if not asset['url'].startswith('https://') or new_sources[0].split('::')[-1] != asset['url']:
             raise RuntimeError('Vendor URL differs from the reviewed recipe; update the source manually')
@@ -157,7 +185,8 @@ def prepare(directory, config, new_version, assets):
             body = match[1].replace(values[0], hashes[algorithm], 1)
             recipe = recipe[:match.start(1)] + body + recipe[match.end(1):]
             metadata = replace_metadata(metadata, key, [hashes[algorithm], *values[1:]])
-    recipe = re.sub(r'^pkgver=.*$', 'pkgver=' + new_version, recipe, flags=re.M)
+    for key, value in updates.items():
+        recipe = re.sub(r'^' + re.escape(key) + r'=.*$', key + '=' + value, recipe, flags=re.M)
     recipe = re.sub(r'^pkgrel=.*$', 'pkgrel=1', recipe, flags=re.M)
     metadata = replace_metadata(metadata, 'pkgver', [new_version])
     metadata = replace_metadata(metadata, 'pkgrel', ['1'])

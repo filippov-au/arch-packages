@@ -1,0 +1,10 @@
+{
+  "provider": "cursor",
+  "url": "https://api2.cursor.sh/updates/api/update/linux-x64/sand/0.0.0/arch-packages/stable",
+  "assets": [
+    {
+      "source": "source",
+      "checksums": ["sha256sums"]
+    }
+  ]
+}

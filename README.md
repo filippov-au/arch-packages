@@ -1,6 +1,7 @@
 # Arch packages
 
-Reviewed Arch Linux packages for Proton Pass, Proton Mail, Proton Drive CLI, and Stremio.
+Reviewed Arch Linux packages for Proton Pass, Proton Mail, Proton Drive CLI, Stremio,
+and Grok Bot.
 
 This is a community-maintained pacman repository for **x86_64 Arch Linux and
 Omarchy**. Packages are currently **unsigned**; see [Trust](#trust) before
@@ -20,6 +21,7 @@ installing.
 | `proton_mail` | `proton-mail-bin` | Proton's Linux release feed |
 | `proton_drive` | `proton-drive-cli-bin` | Proton's CLI release feed |
 | `stremio` | `stremio-linux-shell` | Official GitHub source releases |
+| `grok_bot` | `grok-bot` | xAI's Grok Bot update feed |
 
 See each `PKGBUILD` for its version, dependencies, checksums, and upstream license.
 Only **x86_64** is published, including packages marked `any`; there is no ARM
@@ -30,6 +32,9 @@ repository.
   not the hosted web interface's. The command is `stremio`. It provides and
   conflicts with the legacy AUR `stremio` Qt5 package, so pacman will offer to
   remove that package. See the [AUR and upstream review](stremio/REVIEW.md).
+- **Grok Bot** repackages xAI's official AppImage. It uses Omarchy's package name,
+  `grok-bot`, so this repository's newer build replaces Omarchy's on the next update.
+  Extra Electron flags can go in `~/.config/grok-bot-flags.conf`.
 
 ## Install
 
@@ -131,12 +136,13 @@ stable vendor version and closes older update PRs for the same package. It does
 not duplicate existing PRs, reopen manually closed ones, or merge automatically.
 
 Each package's `.upstream.json` names its official release feed and assets. The
-updater picks the highest stable Proton version or the latest stable Stremio
-GitHub release, never downgrades, and updates `pkgver`, `pkgrel`, checksums, and
-`.SRCINFO`. It does not wait for AUR updates or import third-party packaging
+updater picks the highest stable Proton version, the latest stable Stremio
+GitHub release, or the current stable Grok Bot release. It never downgrades, and
+updates `pkgver`, `pkgrel`, checksums, and `.SRCINFO`. It does not wait for AUR updates or import third-party packaging
 changes; recipes, dependencies, and launchers are maintained here.
 
-- Vendor-published checksums are verified, including both Drive architectures;
+- Vendor-published checksums are verified, including both Drive architectures and
+  Grok Bot's AppImage (its release commit in the download URL is updated too);
   Mail's launcher checksums (including BLAKE2) are preserved.
 - Stremio source archives have no published checksum, so the updater pins the
   SHA-256 of the reviewed versioned HTTPS URL. Rust dependencies are locked by
