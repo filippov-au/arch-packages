@@ -95,13 +95,14 @@ install_main() {
     case "$1" in
       --build-only) build_only=1 ;;
       -h|--help)
-        echo 'Usage: ./install.sh [--build-only] [proton_pass proton_mail proton_drive stremio]'
+        echo 'Usage: ./install.sh [--build-only] [proton_pass proton_mail proton_drive stremio grok_bot]'
         echo 'Without package names, prompts for packages to install (--build-only builds all).'
         exit 0 ;;
       proton_pass|proton-pass-bin) selected+=(proton_pass) ;;
       proton_mail|proton-mail-bin) selected+=(proton_mail) ;;
       proton_drive|proton-drive-cli-bin) selected+=(proton_drive) ;;
       stremio|stremio-linux-shell) selected+=(stremio) ;;
+      grok_bot|grok-bot) selected+=(grok_bot) ;;
       *) echo "Unknown option or package: $1" >&2; exit 2 ;;
     esac
     shift
@@ -112,7 +113,7 @@ install_main() {
       exit 2
     fi
     cd "$(dirname "${BASH_SOURCE[0]}")"
-    ((${#selected[@]})) || selected=(proton_pass proton_mail proton_drive stremio)
+    ((${#selected[@]})) || selected=(proton_pass proton_mail proton_drive stremio grok_bot)
     for package in "${selected[@]}"; do
       bash scripts/build.sh "$package" "dist/$package"
     done
@@ -125,7 +126,8 @@ install_main() {
       '  1) Proton Pass' \
       '  2) Proton Mail' \
       '  3) Proton Drive CLI' \
-      '  4) Stremio'
+      '  4) Stremio' \
+      '  5) Grok Bot'
     while true; do
       printf 'Enter numbers separated by spaces (e.g. 1 2), all, or q to cancel: '
       if ! IFS= read -r answer || [[ -z ${answer//[[:space:]]/} || $answer == q ]]; then
@@ -142,9 +144,10 @@ install_main() {
           2) package=proton_mail ;;
           3) package=proton_drive ;;
           4) package=stremio ;;
+          5) package=grok_bot ;;
           all)
             if ((${#choices[@]} == 1)); then
-              selected=(proton_pass proton_mail proton_drive stremio)
+              selected=(proton_pass proton_mail proton_drive stremio grok_bot)
               break
             fi
             valid=0; break ;;
@@ -155,7 +158,7 @@ install_main() {
         fi
       done
       if ((valid)); then break; fi
-      echo 'Invalid selection. Choose numbers from 1 to 4, all, or q.' >&2
+      echo 'Invalid selection. Choose numbers from 1 to 5, all, or q.' >&2
     done
   fi
   declare -A names=(
@@ -163,6 +166,7 @@ install_main() {
     [proton_mail]=proton-mail-bin
     [proton_drive]=proton-drive-cli-bin
     [stremio]=stremio-linux-shell
+    [grok_bot]=grok-bot
   )
   targets=()
   for package in "${selected[@]}"; do targets+=("arch-packages/${names[$package]}"); done

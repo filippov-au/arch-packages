@@ -1,0 +1,66 @@
+# Maintainer: Andrei Filippov
+
+pkgname=grok-bot
+pkgver=0.70.2
+pkgrel=1
+_commit=52da656f56d317510ca65ad6af3d69a2cde461e0
+pkgdesc='Grok Bot desktop agent'
+arch=('x86_64')
+url='https://x.ai/bot'
+license=('LicenseRef-Proprietary') # Grok Bot
+license+=('MIT') # Bundled Electron
+makedepends=('squashfs-tools')
+depends=('alsa-lib' 'at-spi2-core' 'bash' 'cairo' 'dbus' 'expat' 'glib2' 'glibc' 'gtk3'
+         'hicolor-icon-theme' 'libcups' 'libdrm' 'libgcc' 'libnotify' 'libsecret' 'libx11'
+         'libxcb' 'libxcomposite' 'libxdamage' 'libxext' 'libxfixes' 'libxkbcommon'
+         'libxrandr' 'libxss' 'libxtst' 'mesa' 'nspr' 'nss' 'pango' 'systemd-libs'
+         'util-linux-libs' 'xdg-utils')
+optdepends=('libappindicator: tray icon')
+provides=('sand')
+conflicts=('sand')
+options=('!strip' '!debug')
+source=("Grok_Bot_${pkgver}.AppImage::https://downloads.cursor.com/grokbot/stable/${_commit}/linux/x64/Grok_Bot_${pkgver}.AppImage"
+        'grok-bot.sh')
+sha256sums=('63feec8c0b9976cb25289b13a5c8598cdb882ba9ef2d292ce990cc427b46a2e0'
+            '36d91ce0639a352522e19500f9e4b22bef13d6234daa8d79322ce60ba7d32dd1')
+
+prepare() {
+	local appimage="Grok_Bot_${pkgver}.AppImage" offset
+	# A type 2 AppImage stores its SquashFS image after the ELF section headers.
+	offset=$(( $(od -An -tu8 -j40 -N8 "$appimage") +
+		$(od -An -tu2 -j58 -N2 "$appimage") * $(od -An -tu2 -j60 -N2 "$appimage") ))
+	if [[ $(od -An -tc -j"$offset" -N4 "$appimage" | tr -d ' ') != hsqs ]]; then
+		echo 'Error: AppImage SquashFS payload not found.' >&2
+		return 1
+	fi
+	rm -rf squashfs-root
+	unsquashfs -q -no-xattrs -o "$offset" -d squashfs-root "$appimage"
+}
+
+package() {
+	cd squashfs-root
+
+	# Install the Electron application without the AppImage runtime files.
+	install -dm755 "$pkgdir/opt/$pkgname"
+	find . -mindepth 1 -maxdepth 1 ! -name AppRun ! -name .DirIcon ! -name '*.desktop' \
+		! -name "$pkgname.png" ! -name usr \
+		-exec cp -a --no-preserve=ownership -t "$pkgdir/opt/$pkgname" {} +
+	chmod -R u+rwX,go+rX,go-w "$pkgdir/opt/$pkgname"
+
+	install -Dm755 "$srcdir/grok-bot.sh" "$pkgdir/usr/bin/grok-bot"
+	ln -s grok-bot "$pkgdir/usr/bin/sand"
+
+	install -Dm644 "$pkgname.desktop" "$pkgdir/usr/share/applications/$pkgname.desktop"
+	sed -i -e 's|^Exec=.*|Exec=grok-bot %U|' -e '/^X-AppImage-/d' \
+		"$pkgdir/usr/share/applications/$pkgname.desktop"
+	if [[ -d usr/share/icons/hicolor ]]; then
+		install -dm755 "$pkgdir/usr/share/icons"
+		cp -a --no-preserve=ownership usr/share/icons/hicolor "$pkgdir/usr/share/icons/"
+		chmod -R u+rwX,go+rX,go-w "$pkgdir/usr/share/icons"
+	else
+		install -Dm644 "$pkgname.png" "$pkgdir/usr/share/pixmaps/$pkgname.png"
+	fi
+
+	install -Dm644 -t "$pkgdir/usr/share/licenses/$pkgname" \
+		LICENSE.electron.txt LICENSES.chromium.html
+}

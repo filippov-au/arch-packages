@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [proton_pass, proton_mail, proton_drive, stremio]
+        package: [proton_pass, proton_mail, proton_drive, stremio, grok_bot]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
