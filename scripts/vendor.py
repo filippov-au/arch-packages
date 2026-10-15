@@ -87,7 +87,8 @@ def latest(config):
 def download_hashes(asset):
     print(f"Hashing vendor download: {asset['url']}", flush=True)
     hashes = {name: hashlib.new(name) for name in ALGORITHMS.values()}
-    with urllib.request.urlopen(asset['url'], timeout=120) as response:
+    request = urllib.request.Request(asset['url'], headers={'User-Agent': 'arch-packages-update-checker'})
+    with urllib.request.urlopen(request, timeout=120) as response:
         while block := response.read(1024 * 1024):
             for digest in hashes.values():
                 digest.update(block)
