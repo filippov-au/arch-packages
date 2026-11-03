@@ -82,3 +82,17 @@ software contains no sensitive-looking data.
 
 Git author names/emails are public. Keep GitHub authentication in the local CLI or
 the runner's temporary environment, never in committed files or package artifacts.
+
+## Cloud Agent environment
+
+The Cloud Agent host is Ubuntu. `python` is Python 3.12. Package builds run in
+Docker with `zstd`; the host has no `pacman`. Use the checks in
+[CONTRIBUTING.md](CONTRIBUTING.md). An end-to-end package build is
+`./install.sh --build-only proton_drive`.
+
+The environment start script launches `dockerd` because systemd is not running,
+and it sets the hostname to `arch-packages-builder`. Package audits reject
+payloads that contain the machine hostname, and the default hostname `cursor`
+occurs inside upstream binaries such as Proton Drive. Leave that hostname in
+place while building or auditing packages. If `docker info` fails, read
+`/var/log/dockerd.log`.
