@@ -1,9 +1,9 @@
 # Maintainer: Andrei Filippov
 
 pkgname=grok-bot
-pkgver=0.79.3
+pkgver=1.0.3
 pkgrel=1
-_commit=473941287261c3efa92c6b2a0bf7e1caad1a2ef2
+_commit=be8eaf76ba888db05a6a8950922f5fc8bb4d14e9
 pkgdesc='Grok Bot desktop agent'
 arch=('x86_64')
 url='https://x.ai/bot'
@@ -21,7 +21,7 @@ conflicts=('sand')
 options=('!strip' '!debug')
 source=("Grok_Bot_${pkgver}.AppImage::https://downloads.cursor.com/grokbot/stable/${_commit}/linux/x64/Grok_Bot_${pkgver}.AppImage"
         'grok-bot.sh')
-sha256sums=('64f38420a1f6509bbb901ac9ddaa0a7418bd074652c83bcf425cc9a8bf7739d8'
+sha256sums=('aa767b352fe492e02805deb7a37db925f23964df9905b6fe088a525b96558aea'
             '36d91ce0639a352522e19500f9e4b22bef13d6234daa8d79322ce60ba7d32dd1')
 
 prepare() {
