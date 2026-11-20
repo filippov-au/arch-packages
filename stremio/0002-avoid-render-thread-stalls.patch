@@ -10,7 +10,7 @@
  anyhow = "1.0.104"
 --- a/Cargo.lock
 +++ b/Cargo.lock
-@@ -2620,6 +2620,7 @@
+@@ -2629,6 +2629,7 @@
   "libc",
   "libloading 0.9.0",
   "libmpv2",
@@ -25,21 +25,22 @@
  use gtk::{
 -    gdk::GLContext,
 +    gdk::{GLContext, Toplevel, ToplevelState},
+     gio::Settings,
      glib::{self, Propagation, Properties, Variant, clone, subclass::Signal},
      prelude::*,
-     subclass::prelude::*,
-@@ -9,27 +9,28 @@
+@@ -10,28 +10,30 @@
      Error, Format, Mpv, SetData,
      events::{Event, PropertyData},
      mpv_end_file_reason,
 -    render::{OpenGLInitParams, RenderContext, RenderParam, RenderParamApiType},
  };
+ use shellexpand::tilde;
 -use std::{cell::RefCell, env, os::raw::c_void, sync::OnceLock};
 +use std::{cell::RefCell, env, os::raw::c_void, sync::OnceLock, time::Duration};
- use tracing::error;
+ use tracing::{error, warn};
+
+ use crate::{app::config::APP_ID, spawn_local};
  
- use crate::spawn_local;
--
 -fn get_proc_address(_context: &GLContext, name: &str) -> *mut c_void {
 -    epoxy::get_proc_addr(name) as _
 -}
@@ -64,7 +65,7 @@
  }
  
  impl Default for Video {
-@@ -56,9 +57,14 @@
+@@ -76,9 +78,14 @@
  
          mpv.disable_deprecated_events().ok();
  
@@ -79,7 +80,7 @@
          }
      }
  }
-@@ -78,6 +84,14 @@
+@@ -98,6 +105,14 @@
          }
      }
  
@@ -94,7 +95,7 @@
      fn unobserve_properties(&self) {
          if let Err(e) = self.mpv.borrow().unobserve_property(0) {
              error!("Failed to unobserve properties: {e}");
-@@ -85,7 +99,7 @@
+@@ -105,7 +120,7 @@
      }
  
      pub fn send_command(&self, name: &str, args: &[&str]) {
@@ -103,15 +104,15 @@
              error!("Failed to send command {name}: {e}");
          }
      }
-@@ -97,10 +111,70 @@
+@@ -117,8 +132,68 @@
      }
  
      pub fn set_property<T: SetData>(&self, name: &str, value: T) {
 -        if let Err(e) = self.mpv.borrow().set_property(name, value) {
 +        if let Err(e) = mpv_async::set_property(&self.requests.borrow(), name, value) {
              error!("Failed to set property {name}: {e}");
-         }
-     }
++        }
++    }
 +
 +    fn cancel_render_fallback(&self) {
 +        if let Some(source) = self.render_fallback.borrow_mut().take() {
@@ -170,12 +171,10 @@
 +                }
 +            ));
 +            *self.render_fallback.borrow_mut() = Some(source);
-+        }
-+    }
+         }
+     }
  }
- 
- #[glib::object_subclass]
-@@ -138,7 +212,7 @@
+@@ -159,7 +234,7 @@
              return;
          }
  
@@ -184,7 +183,7 @@
              let mut mpv = self.mpv.borrow_mut();
              let (sender, receiver) = flume::unbounded::<EventCallback>();
  
-@@ -151,7 +225,10 @@
+@@ -172,7 +247,10 @@
                      while let Ok(event) = receiver.recv_async().await {
                          match event {
                              EventCallback::Render => {
@@ -196,7 +195,7 @@
                              }
                              EventCallback::Events => {
                                  video.on_event(|event| match event {
-@@ -196,25 +273,23 @@
+@@ -220,25 +298,23 @@
                  wakeup_sender.send(EventCallback::Events).ok();
              });
  
@@ -223,18 +222,19 @@
 -                    display.id().as_ptr() as *const c_void
 -                ));
 -            }
+-
+-            let mpv_handle = unsafe { mpv.ctx.as_mut() };
+-            let mut render_context = RenderContext::new(mpv_handle, render_params)
 +                Some(display.id().as_ptr() as *mut c_void)
 +            } else {
 +                None
 +            };
- 
--            let mpv_handle = unsafe { mpv.ctx.as_mut() };
--            let mut render_context = RenderContext::new(mpv_handle, render_params)
++
 +            let mut render_context = Renderer::new(&mpv, wayland_display)
                  .expect("Failed to create render context");
  
              let render_sender = sender.clone();
-@@ -227,6 +302,7 @@
+@@ -251,6 +327,7 @@
      }
  
      fn unrealize(&self) {
@@ -242,7 +242,7 @@
          self.obj().make_current();
          if let Some(render_context) = self.render_context.borrow_mut().take() {
              drop(render_context);
-@@ -238,6 +314,7 @@
+@@ -262,6 +339,7 @@
  
  impl GLAreaImpl for Video {
      fn render(&self, _context: &GLContext) -> Propagation {
@@ -250,7 +250,7 @@
          let object = self.obj();
  
          let mut fbo = 0;
-@@ -251,7 +328,7 @@
+@@ -275,7 +353,7 @@
  
          if let Some(ref render_context) = *self.render_context.borrow() {
              render_context
@@ -259,6 +259,16 @@
                  .expect("Failed to render");
          }
  
+--- a/src/app/video/mod.rs
++++ b/src/app/video/mod.rs
+@@ -1,5 +1,7 @@
+ mod config;
+ mod imp;
++mod mpv_async;
++mod renderer;
+
+ use adw::subclass::prelude::ObjectSubclassIsExt;
+ use gtk::glib::{self, Variant, closure_local, object::ObjectExt};
 --- /dev/null
 +++ b/src/app/video/mpv_async.rs
 @@ -0,0 +1,89 @@

@@ -29,8 +29,10 @@ Normal launches translate the UI's automatic `auto-copy` request to mpv's
 `auto` policy, allowing direct decoding when supported. Explicit decoder
 selections and disabled hardware decoding are preserved. mpv selects from its
 supported decoder list and can fall back when a method is unavailable.
+Stremio 1.3.0 now maps the same UI request to `auto-safe`. The package keeps
+`auto`, which selected direct VAAPI in the Intel/Wayland test described below.
 
-To restore the upstream copying policy for a session, close all Stremio
+To force copy-back decoding for a session, close all Stremio
 instances and run:
 
 ```bash

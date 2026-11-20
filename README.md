@@ -118,7 +118,7 @@ On top of upstream's idle CPU fix, the package carries three local patches:
   `auto`, keeping GPU frames on the GPU when supported. Disabled or explicitly
   chosen decoders are unchanged.
 
-To compare against upstream's copying policy, fully close Stremio and run:
+To compare against copy-back decoding, fully close Stremio and run:
 
 ```bash
 STREMIO_HWDEC=auto-copy stremio

@@ -1,30 +1,28 @@
 --- a/src/app/video/mod.rs
 +++ b/src/app/video/mod.rs
-@@ -1,5 +1,7 @@
- mod config;
- mod imp;
-+mod mpv_async;
-+mod renderer;
- 
- use adw::subclass::prelude::ObjectSubclassIsExt;
- use gtk::glib::{self, Variant, closure_local, object::ObjectExt};
-@@ -107,7 +109,18 @@
+@@ -119,19 +119,13 @@
              }
              name if STRING_PROPERTIES.contains(&name) => {
                  if let Some(value) = value.as_str() {
--                    widget.set_property(name, value);
-+                    // Prefer direct decoding for the UI automatic policy. Keep
-+                    // disabled/explicit choices and a copy-mode override intact.
-+                    let override_value = std::env::var("STREMIO_HWDEC").ok();
-+                    let value = if name == "hwdec" && value == "auto-copy" {
-+                        match override_value.as_deref() {
-+                            Some("auto-copy") => "auto-copy",
+-                    // The Stremio web UI enables hardware decoding by sending
+-                    // `hwdec=auto-copy`. That decodes on the GPU but copies every
+-                    // frame back to system memory and re-uploads it for rendering
+-                    // (the "copy-back" path), which is CPU- and bandwidth-heavy —
+-                    // the reason playback here costs more CPU than mpv/VLC. Our
+-                    // render context is created with the Wayland display, so mpv
+-                    // can keep frames on the GPU via a zero-copy interop (VAAPI,
+-                    // Vulkan, NVDEC, ... depending on the driver) instead. Remap
+-                    // to `auto-safe`, which uses such an interop when a known-good
+-                    // one is available and otherwise falls back to software
+-                    // decoding, so playback can never break.
++                    // Keep direct decoding available for the UI's automatic
++                    // preference, with a copy-back override for driver issues.
+                     let value = if name == "hwdec" && value == "auto-copy" {
+-                        "auto-safe"
++                        match std::env::var("STREMIO_HWDEC").as_deref() {
++                            Ok("auto-copy") => "auto-copy",
 +                            _ => "auto",
 +                        }
-+                    } else {
-+                        value
-+                    };
-+                    widget.set_property(name, value.to_owned());
-                 }
-             }
-             name => warn!("Failed to set property {name}: Unsupported"),
+                     } else {
+                         value
+                     };
