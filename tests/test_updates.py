@@ -38,6 +38,8 @@ class VendorTests(unittest.TestCase):
             url = vendor.metadata_values(metadata, spec['source'])[0].split('::')[-1].replace(current, version)
             if config['provider'] == 'github-source':
                 assets.append(dict(spec, url=url, kind='source-archive'))
+            elif config['provider'] == 'github-git':
+                assets.append(dict(spec, url=url, kind='git-commit'))
             else:
                 algorithm = 'sha256' if config['provider'] in ('github', 'cursor') else 'sha512'
                 assets.append(dict(spec, url=url, algorithm=algorithm, digest=HASHES[algorithm]))
@@ -147,6 +149,36 @@ class VendorTests(unittest.TestCase):
                 self.assertEqual(vendor.download_hashes(assets[0]), HASHES)
             data['prerelease'] = True
             with self.assertRaisesRegex(RuntimeError, 'stable'):
+                vendor.latest(config)
+
+    def test_github_git_pins_verified_release_commit_without_download(self):
+        directory, config, _, _ = self.fixture('chiaki_ng')
+        commit = 'c' * 40
+        api = 'https://api.github.com/repos/chiaki-ng/chiaki-ng'
+        responses = {
+            config['url']: {'tag_name': 'v9.10.0', 'draft': False, 'prerelease': False},
+            f'{api}/git/ref/tags/v9.10.0': {'object': {'type': 'tag', 'sha': 't' * 40}},
+            f'{api}/git/tags/{"t" * 40}': {'object': {'type': 'commit', 'sha': commit}},
+            f'{api}/commits/{commit}': {'commit': {'verification': {'verified': True}}},
+        }
+        with patch.object(vendor, 'get_json', side_effect=responses.__getitem__):
+            version, assets = vendor.latest(config)
+        self.assertEqual(version, '9.10.0')
+        self.assertEqual(assets[0]['url'], f'git+https://github.com/chiaki-ng/chiaki-ng.git?signed#commit={commit}')
+        with patch.object(vendor, 'download_hashes') as download:
+            changes = vendor.prepare(directory, config, version, assets)
+        download.assert_not_called()
+        recipe = changes['PKGBUILD'].decode()
+        self.assertEqual(vendor.scalar(recipe, '_commit'), commit)
+        self.assertEqual(vendor.array(recipe, 'sha256sums')[1], vendor.array((directory / 'PKGBUILD').read_text(), 'sha256sums')[1])
+        self.assertEqual(vendor.metadata_values(changes['.SRCINFO'].decode(), 'source')[0], 'chiaki-ng::' + assets[0]['url'])
+        responses[f'{api}/commits/{commit}'] = {'commit': {'verification': {'verified': False}}}
+        with patch.object(vendor, 'get_json', side_effect=responses.__getitem__):
+            with self.assertRaisesRegex(RuntimeError, 'verified signature'):
+                vendor.latest(config)
+        responses[f'{api}/git/tags/{"t" * 40}'] = {'object': {'type': 'tree', 'sha': commit}}
+        with patch.object(vendor, 'get_json', side_effect=responses.__getitem__):
+            with self.assertRaisesRegex(RuntimeError, 'does not name a commit'):
                 vendor.latest(config)
 
     def test_source_archive_url_change_is_rejected_before_download(self):

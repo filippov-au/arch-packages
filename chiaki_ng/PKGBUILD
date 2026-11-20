@@ -1,0 +1,78 @@
+# Upstream: chiaki-ng <https://github.com/chiaki-ng/chiaki-ng>
+# AUR recipe reviewed: WorMzy Tykashi <wormzy.tykashi@gmail.com>
+# This recipe builds the signed release commit against Arch's Qt, NSS, and
+# OpenSSL instead of repackaging upstream's AppImage, whose partial NSS bundle
+# loads the system softokn and aborts Qt WebEngine.
+
+pkgname=chiaki-ng
+pkgver=1.10.1
+pkgrel=1
+_commit=f30da0aaeb96fc0026cc03683153f682352e7d7c
+pkgdesc='PlayStation Remote Play client'
+arch=('x86_64')
+url='https://github.com/chiaki-ng/chiaki-ng'
+license=('LicenseRef-AGPL-3.0-only-OpenSSL')
+depends=('glibc' 'gcc-libs' 'curl' 'ffmpeg' 'fftw' 'hidapi' 'json-c' 'libevent' 'libplacebo'
+         'miniupnpc' 'openssl' 'opus' 'qt6-base' 'qt6-declarative' 'qt6-svg'
+         'qt6-webengine' 'sdl2' 'speexdsp' 'hicolor-icon-theme')
+makedepends=('git' 'cmake' 'python-protobuf' 'python-setuptools' 'vulkan-headers')
+optdepends=('qt6-wayland: native Wayland instead of XWayland'
+            'intel-media-driver: VA-API decoding on Intel GPUs (Broadwell and newer)'
+            'libva-intel-driver: VA-API decoding on Intel GPUs (Haswell and older)'
+            'libva-mesa-driver: VA-API decoding on AMD GPUs')
+provides=('chiaki')
+conflicts=('chiaki' 'chiaki-git' 'chiaki-ng-bin' 'chiaki-ng-git')
+options=('!debug')
+# Street Pea <streetpea@proton.me>; public key in keys/pgp.
+validpgpkeys=('609B7D18288DF6E62624B0694569A5F4961E8ED9')
+# Submodules are checked out at the commits recorded by the signed release.
+source=("${pkgname}::git+${url}.git?signed#commit=${_commit}"
+        'git+https://github.com/nanopb/nanopb.git'
+        'git+https://github.com/streetpea/jerasure.git'
+        'git+https://github.com/streetpea/gf-complete.git'
+        'git+https://github.com/streetpea/cpp-steam-tools.git'
+        'git+https://github.com/streetpea/munit.git')
+sha256sums=('SKIP'
+            'SKIP'
+            'SKIP'
+            'SKIP'
+            'SKIP'
+            'SKIP')
+
+prepare() {
+  cd "${pkgname}"
+  local submodule
+  for submodule in third-party/nanopb third-party/jerasure third-party/gf-complete \
+                   third-party/cpp-steam-tools test/munit; do
+    git submodule init "${submodule}"
+    git config "submodule.${submodule}.url" "${srcdir}/${submodule##*/}"
+    git -c protocol.file.allow=always submodule update "${submodule}"
+  done
+}
+
+build() {
+  # The bundled jerasure and gf-complete sources predate C23.
+  export CFLAGS+=' -std=gnu17'
+  # Keep absolute build paths out of filenames embedded by the compiler.
+  export CFLAGS+=" -ffile-prefix-map=${srcdir}/${pkgname}=."
+  export CXXFLAGS+=" -ffile-prefix-map=${srcdir}/${pkgname}=."
+  cmake -B build -S "${pkgname}" -Wno-dev \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_BUILD_TYPE=None \
+    -DCHIAKI_USE_SYSTEM_CURL=ON \
+    -DCHIAKI_USE_SYSTEM_NANOPB=OFF \
+    -DCHIAKI_USE_SYSTEM_JERASURE=OFF \
+    -DCHIAKI_ENABLE_TESTS=ON
+  cmake --build build
+}
+
+check() {
+  ctest --test-dir build --output-on-failure
+}
+
+package() {
+  DESTDIR="${pkgdir}" cmake --install build
+  # The Steam shortcut library is private to chiaki; keep its generic headers out of /usr/include.
+  rm -r "${pkgdir}/usr/include"
+  install -Dm644 "${pkgname}"/LICENSES/* -t "${pkgdir}/usr/share/licenses/${pkgname}/"
+}
