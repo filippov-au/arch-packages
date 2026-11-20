@@ -1,7 +1,7 @@
 # Arch packages
 
 Reviewed Arch Linux packages for Proton Pass, Proton Mail, Proton Drive CLI, Stremio,
-Grok Bot, and chiaki-ng.
+and chiaki-ng.
 
 This is a community-maintained pacman repository for **x86_64 Arch Linux and
 Omarchy**. Packages are currently **unsigned**; see [Trust](#trust) before
@@ -21,7 +21,6 @@ installing.
 | `proton_mail` | `proton-mail-bin` | Proton's Linux release feed |
 | `proton_drive` | `proton-drive-cli-bin` | Proton's CLI release feed |
 | `stremio` | `stremio-linux-shell` | Official GitHub source releases |
-| `grok_bot` | `grok-bot` | xAI's Grok Bot update feed |
 | `chiaki_ng` | `chiaki-ng` | Signed GitHub release commits |
 
 See each `PKGBUILD` for its version, dependencies, checksums, and upstream license.
@@ -33,9 +32,6 @@ repository.
   not the hosted web interface's. The command is `stremio`. It provides and
   conflicts with the legacy AUR `stremio` Qt5 package, so pacman will offer to
   remove that package. See the [AUR and upstream review](stremio/REVIEW.md).
-- **Grok Bot** repackages xAI's official AppImage. It uses Omarchy's package name,
-  `grok-bot`, so this repository's newer build replaces Omarchy's on the next update.
-  Extra Electron flags can go in `~/.config/grok-bot-flags.conf`.
 - **chiaki-ng** builds the PlayStation Remote Play client from its signed release
   commit against Arch's Qt, NSS, and OpenSSL. Upstream's AppImage bundles a partial
   NSS that loads Arch's newer `libsoftokn3` and aborts when the PSN login web view
@@ -142,13 +138,13 @@ not duplicate existing PRs, reopen manually closed ones, or merge automatically.
 
 Each package's `.upstream.json` names its official release feed and assets. The
 updater picks the highest stable Proton version, the latest stable Stremio or
-chiaki-ng GitHub release, or the current stable Grok Bot release. It never downgrades, and
-updates `pkgver`, `pkgrel`, checksums, and `.SRCINFO`. It does not wait for AUR updates or import third-party packaging
-changes; recipes, dependencies, and launchers are maintained here.
+chiaki-ng GitHub release. It updates `pkgver`, `pkgrel`, checksums, and
+`.SRCINFO` without downgrading. It does not wait for AUR updates or import
+third-party packaging changes; recipes, dependencies, and launchers are
+maintained here.
 
-- Vendor-published checksums are verified, including both Drive architectures and
-  Grok Bot's AppImage (its release commit in the download URL is updated too);
-  Mail's launcher checksums (including BLAKE2) are preserved.
+- The updater verifies vendor-published checksums, including both Drive
+  architectures, and preserves Mail's launcher checksums (including BLAKE2).
 - Stremio source archives have no published checksum, so the updater pins the
   SHA-256 of the reviewed versioned HTTPS URL. Rust dependencies are locked by
   upstream's `Cargo.lock`.

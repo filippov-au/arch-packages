@@ -71,20 +71,6 @@ def latest(config):
                 raise RuntimeError('GitHub asset has no verifiable SHA-256 digest')
             assets.append(dict(spec, url=asset['browser_download_url'], algorithm='sha256', digest=digest[7:]))
         return version, assets
-    if config['provider'] == 'cursor':
-        # xAI publishes Grok Bot through Cursor's update service. Each build is
-        # stored under its release commit, which the recipe pins as _commit.
-        version = data.get('version')
-        version_key(version)
-        match = re.fullmatch(r'https://downloads\.cursor\.com/grokbot/stable/([0-9a-f]{40})/linux/x64/'
-                             r'Grok_Bot_' + re.escape(version) + r'\.AppImage', data.get('url') or '')
-        if not match:
-            raise RuntimeError('Unexpected Grok Bot download URL')
-        digest = data.get('sha256hash') or ''
-        if not re.fullmatch(r'[0-9a-f]{64}', digest):
-            raise RuntimeError('Grok Bot asset has no verifiable SHA-256 checksum')
-        return version, [dict(spec, url=data['url'], algorithm='sha256', digest=digest,
-                              variables={'_commit': match[1]}) for spec in config['assets']]
     if config['provider'] != 'proton':
         raise RuntimeError('Unknown vendor provider')
     stable = [release for release in data['Releases'] if release['CategoryName'] == 'Stable']
