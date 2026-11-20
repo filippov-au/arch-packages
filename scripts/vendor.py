@@ -22,21 +22,42 @@ def get_json(url):
         return json.load(response)
 
 
+def release_commit(repository, tag):
+    # Resolve the release tag through the API; git checks out exactly this
+    # object and makepkg verifies its signature against the pinned key.
+    api = f'https://api.github.com/repos/{repository}'
+    target = get_json(f'{api}/git/ref/tags/{tag}')['object']
+    while target['type'] == 'tag':
+        target = get_json(f'{api}/git/tags/{target["sha"]}')['object']
+    commit = target['sha']
+    if target['type'] != 'commit' or not re.fullmatch(r'[0-9a-f]{40}', commit):
+        raise RuntimeError('GitHub release tag does not name a commit')
+    if not get_json(f'{api}/commits/{commit}')['commit']['verification']['verified']:
+        raise RuntimeError('GitHub release commit has no verified signature')
+    return commit
+
+
 def latest(config):
     data = get_json(config['url'])
-    if config['provider'] in ('github', 'github-source'):
+    if config['provider'] in ('github', 'github-source', 'github-git'):
         if data.get('draft') or data.get('prerelease'):
             raise RuntimeError('Expected a stable GitHub release')
         version = data['tag_name'].removeprefix('v')
         version_key(version)
-        if config['provider'] == 'github-source':
-            # GitHub-generated source archives have no published asset digest.
-            # Pin their downloaded bytes, using only this reviewed repository's
-            # versioned HTTPS URL; never accept a redirect URL from feed data.
+        if config['provider'] in ('github-source', 'github-git'):
+            # Use only this reviewed repository's HTTPS URLs; never accept a
+            # redirect URL from feed data.
             repository = re.fullmatch(
                 r'https://api\.github\.com/repos/([\w.-]+/[\w.-]+)/releases/latest', config['url'])
             if not repository:
                 raise RuntimeError('Unsupported GitHub source release feed')
+            if config['provider'] == 'github-git':
+                commit = release_commit(repository[1], data['tag_name'])
+                url = f'git+https://github.com/{repository[1]}.git?signed#commit={commit}'
+                return version, [dict(spec, url=url, kind='git-commit', variables={'_commit': commit})
+                                 for spec in config['assets']]
+            # GitHub-generated source archives have no published asset digest,
+            # so pin their downloaded bytes.
             url = f'https://github.com/{repository[1]}/archive/refs/tags/v{version}.tar.gz'
             return version, [dict(spec, url=url, kind='source-archive') for spec in config['assets']]
         assets = []
@@ -169,10 +190,14 @@ def prepare(directory, config, new_version, assets):
             raise RuntimeError(f'.SRCINFO {source_key} does not match recipe')
         new_sources = [expand(item, dict(variables, **updates)) for item in sources]
         # Feed data cannot redirect the updater to a different host or asset.
-        if not asset['url'].startswith('https://') or new_sources[0].split('::')[-1] != asset['url']:
+        scheme = 'git+https://' if asset.get('kind') == 'git-commit' else 'https://'
+        if not asset['url'].startswith(scheme) or new_sources[0].split('::')[-1] != asset['url']:
             raise RuntimeError('Vendor URL differs from the reviewed recipe; update the source manually')
-        hashes = download_hashes(asset)
         metadata = replace_metadata(metadata, source_key, new_sources)
+        if asset.get('kind') == 'git-commit':
+            # A commit pin has no archive to hash; its checksum stays SKIP.
+            continue
+        hashes = download_hashes(asset)
         suffix = source_key.removeprefix('source')
         for checksum in asset['checksums']:
             key = checksum + suffix

@@ -8,7 +8,7 @@ import tempfile
 import vendor
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-PACKAGES = ('proton_pass', 'proton_mail', 'proton_drive', 'stremio', 'grok_bot')
+PACKAGES = ('proton_pass', 'proton_mail', 'proton_drive', 'stremio', 'grok_bot', 'chiaki_ng')
 
 
 def run(*args, cwd=None, **kwargs):
@@ -68,11 +68,12 @@ def update_vendor(package, config, pr=False, repo=None):
         run('git', 'push', '--set-upstream', 'origin', branch)
         with tempfile.TemporaryDirectory() as tmp:
             body = pathlib.Path(tmp) / 'pr.md'
-            verification = (
-                'Official source archive downloaded over HTTPS and its SHA-256 pinned. '
-                'Upstream does not publish an independent checksum for this source archive. '
-                if config['provider'] == 'github-source' else
-                'Downloads were verified against vendor-published checksums. ')
+            verification = {
+                'github-source': 'Official source archive downloaded over HTTPS and its SHA-256 pinned. '
+                                 'Upstream does not publish an independent checksum for this source archive. ',
+                'github-git': 'Release tag resolved to its GitHub-verified signed commit, which is pinned. '
+                              'makepkg verifies the commit signature against the reviewed PGP key. ',
+            }.get(config['provider'], 'Downloads were verified against vendor-published checksums. ')
             body.write_text(f'Update `{package}` from `{current}` to `{latest}`.\n\n'
                             f'Vendor release feed: {config["url"]}\n\n'
                             f'{verification}'

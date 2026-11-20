@@ -95,7 +95,7 @@ install_main() {
     case "$1" in
       --build-only) build_only=1 ;;
       -h|--help)
-        echo 'Usage: ./install.sh [--build-only] [proton_pass proton_mail proton_drive stremio grok_bot]'
+        echo 'Usage: ./install.sh [--build-only] [proton_pass proton_mail proton_drive stremio grok_bot chiaki_ng]'
         echo 'Without package names, prompts for packages to install (--build-only builds all).'
         exit 0 ;;
       proton_pass|proton-pass-bin) selected+=(proton_pass) ;;
@@ -103,6 +103,7 @@ install_main() {
       proton_drive|proton-drive-cli-bin) selected+=(proton_drive) ;;
       stremio|stremio-linux-shell) selected+=(stremio) ;;
       grok_bot|grok-bot) selected+=(grok_bot) ;;
+      chiaki_ng|chiaki-ng) selected+=(chiaki_ng) ;;
       *) echo "Unknown option or package: $1" >&2; exit 2 ;;
     esac
     shift
@@ -113,7 +114,7 @@ install_main() {
       exit 2
     fi
     cd "$(dirname "${BASH_SOURCE[0]}")"
-    ((${#selected[@]})) || selected=(proton_pass proton_mail proton_drive stremio grok_bot)
+    ((${#selected[@]})) || selected=(proton_pass proton_mail proton_drive stremio grok_bot chiaki_ng)
     for package in "${selected[@]}"; do
       bash scripts/build.sh "$package" "dist/$package"
     done
@@ -127,7 +128,8 @@ install_main() {
       '  2) Proton Mail' \
       '  3) Proton Drive CLI' \
       '  4) Stremio' \
-      '  5) Grok Bot'
+      '  5) Grok Bot' \
+      '  6) chiaki-ng'
     while true; do
       printf 'Enter numbers separated by spaces (e.g. 1 2), all, or q to cancel: '
       if ! IFS= read -r answer || [[ -z ${answer//[[:space:]]/} || $answer == q ]]; then
@@ -145,9 +147,10 @@ install_main() {
           3) package=proton_drive ;;
           4) package=stremio ;;
           5) package=grok_bot ;;
+          6) package=chiaki_ng ;;
           all)
             if ((${#choices[@]} == 1)); then
-              selected=(proton_pass proton_mail proton_drive stremio grok_bot)
+              selected=(proton_pass proton_mail proton_drive stremio grok_bot chiaki_ng)
               break
             fi
             valid=0; break ;;
@@ -158,7 +161,7 @@ install_main() {
         fi
       done
       if ((valid)); then break; fi
-      echo 'Invalid selection. Choose numbers from 1 to 5, all, or q.' >&2
+      echo 'Invalid selection. Choose numbers from 1 to 6, all, or q.' >&2
     done
   fi
   declare -A names=(
@@ -167,6 +170,7 @@ install_main() {
     [proton_drive]=proton-drive-cli-bin
     [stremio]=stremio-linux-shell
     [grok_bot]=grok-bot
+    [chiaki_ng]=chiaki-ng
   )
   targets=()
   for package in "${selected[@]}"; do targets+=("arch-packages/${names[$package]}"); done

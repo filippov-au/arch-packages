@@ -14,6 +14,10 @@ EOF
 mkdir /build/output
 chown builder:builder /build/output
 cd /build/package
+# Recipes pin release signing keys by fingerprint; import the reviewed public keys.
+if compgen -G 'keys/pgp/*.asc' >/dev/null; then
+  sudo -u builder gpg --batch --import keys/pgp/*.asc
+fi
 sudo -u builder makepkg --syncdeps --noconfirm --cleanbuild
 cp /build/output/*.pkg.tar.zst /output/
 chmod a+r /output/*.pkg.tar.zst

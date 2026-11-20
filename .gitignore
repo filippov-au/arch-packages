@@ -26,5 +26,6 @@ __pycache__/
 *.p12
 *.pfx
 *.asc
+!*/keys/pgp/*.asc
 *.db*
 *.files*

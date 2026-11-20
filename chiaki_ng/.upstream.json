@@ -1,0 +1,10 @@
+{
+  "provider": "github-git",
+  "url": "https://api.github.com/repos/chiaki-ng/chiaki-ng/releases/latest",
+  "assets": [
+    {
+      "source": "source",
+      "checksums": []
+    }
+  ]
+}
